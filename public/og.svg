@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#F0EDDA"/>
+  <!-- Grid lines -->
+  <defs>
+    <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse">
+      <path d="M 42 0 L 0 0 0 42" fill="none" stroke="rgba(0,0,0,0.055)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+
+  <!-- Left accent block -->
+  <rect x="0" y="0" width="8" height="630" fill="#C8FF00"/>
+
+  <!-- Main border -->
+  <rect x="40" y="40" width="1120" height="550" fill="none" stroke="#111" stroke-width="3"/>
+
+  <!-- Logo block -->
+  <rect x="72" y="72" width="180" height="48" fill="#111"/>
+  <text x="162" y="105" text-anchor="middle" font-family="'Arial Black', sans-serif" font-weight="900" font-size="26" fill="#C8FF00">CYPHER_</text>
+
+  <!-- Headline -->
+  <text x="72" y="230" font-family="Georgia, serif" font-weight="900" font-size="88" fill="#111" letter-spacing="-2">1v1</text>
+  <text x="72" y="320" font-family="Georgia, serif" font-weight="900" font-size="88" fill="#111" letter-spacing="-2">Prediction</text>
+  <text x="72" y="410" font-family="Georgia, serif" font-weight="900" font-size="88" fill="#111" letter-spacing="-2">Combat.</text>
+
+  <!-- Sub-text -->
+  <text x="72" y="475" font-family="'Courier New', monospace" font-size="22" fill="#555">Pick 3 cards · Seal the hash · Battle 60s of live Pyth prices · Winner takes the pot</text>
+
+  <!-- Tag strip -->
+  <rect x="72" y="510" width="100" height="30" fill="none" stroke="#C8FF00" stroke-width="2"/>
+  <text x="122" y="531" text-anchor="middle" font-family="'Courier New', monospace" font-size="13" font-weight="700" fill="#888">PYTH</text>
+
+  <rect x="184" y="510" width="100" height="30" fill="none" stroke="#C8FF00" stroke-width="2"/>
+  <text x="234" y="531" text-anchor="middle" font-family="'Courier New', monospace" font-size="13" font-weight="700" fill="#888">SOLANA</text>
+
+  <rect x="296" y="510" width="100" height="30" fill="none" stroke="#C8FF00" stroke-width="2"/>
+  <text x="346" y="531" text-anchor="middle" font-family="'Courier New', monospace" font-size="13" font-weight="700" fill="#888">DEVNET</text>
+
+  <!-- Right illustration — VS badge -->
+  <rect x="820" y="180" width="300" height="300" fill="white" stroke="#111" stroke-width="3"/>
+  <rect x="820" y="180" width="300" height="4" fill="#C8FF00"/>
+  <text x="970" y="360" text-anchor="middle" font-family="'Arial Black', sans-serif" font-weight="900" font-size="96" fill="#111">VS</text>
+  <text x="970" y="420" text-anchor="middle" font-family="'Courier New', monospace" font-size="14" fill="#888">oracle-settled · on-chain</text>
+</svg>
