@@ -336,4 +336,26 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Solana + Anchor — largest dep, load separately
+          'solana-core': ['@solana/web3.js', '@coral-xyz/anchor'],
+          'solana-wallet': [
+            '@solana/wallet-adapter-react',
+            '@solana/wallet-adapter-react-ui',
+            '@solana/wallet-adapter-phantom',
+            '@solana/wallet-adapter-solflare',
+          ],
+          // Animation + charting
+          'motion': ['framer-motion'],
+          'charts': ['recharts'],
+          // React ecosystem
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 })
