@@ -203,6 +203,43 @@ function solanaActionsPlugin(): Plugin {
           return;
         }
 
+        // ── POST /api/webhooks/helius — settle_match event indexer ────────────
+        // Receives: https://dev.helius.xyz/webhooks → accountAddresses: [PROGRAM_ID]
+        // Parses settle_match events and could write to a DB; here we log + ack.
+        if (req.method === 'POST' && url.startsWith('/api/webhooks/helius')) {
+          let body = '';
+          await new Promise<void>((resolve) => {
+            req.on('data', (chunk) => { body += chunk; });
+            req.on('end', resolve);
+          });
+          try {
+            const events = JSON.parse(body || '[]') as Array<{
+              type: string;
+              signature: string;
+              slot: number;
+              accounts?: string[];
+              instructions?: Array<{ programId: string; data: string }>;
+            }>;
+
+            const settled = events.filter(e =>
+              e.type === 'CUSTOM' &&
+              e.instructions?.some(ix => ix.programId === PROGRAM_ID.toBase58())
+            );
+
+            if (settled.length > 0) {
+              console.log(`[helius-webhook] Indexed ${settled.length} settle_match event(s):`,
+                settled.map(e => e.signature));
+              // Production: upsert to Postgres/Redis leaderboard here
+            }
+
+            json(res, { received: events.length, indexed: settled.length });
+          } catch (err) {
+            console.error('[helius-webhook] Parse error:', err);
+            json(res, { error: 'Invalid payload' }, 400);
+          }
+          return;
+        }
+
         // ── GET /api/actions/spectate ─────────────────────────────────────────
         if (req.method === 'GET' && url.startsWith('/api/actions/spectate')) {
           solanaActionsCors(res);

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Swords, ExternalLink, Share2 } from 'lucide-react';
 import { CardIcon, CARD_ICON_ID } from '../CardIcons';
 import { sounds } from '../../lib/sounds';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useGame } from '../../store/game-store';
-import { ASSET_NAMES, CARDS } from '../../lib/constants';
+import { ASSET_NAMES, CARDS, PROGRAM_ID } from '../../lib/constants';
+import { PublicKey } from '@solana/web3.js';
 
 export default function ResultView() {
   const { state, dispatch } = useGame();
@@ -14,29 +15,27 @@ export default function ResultView() {
 
   // In demo mode (no wallet) always treat ourselves as playerA
   const isPlayerA = state.demoMode ? true : publicKey?.toBase58() === match.playerA;
-  const isWinner = state.demoMode
-    ? match.winner === match.playerA
-    : publicKey?.toBase58() === match.winner;
-  const [trophyMinted] = useState(false);
 
-  // Play win/lose sound on mount
+  const myScore  = isPlayerA ? match.scoreA : match.scoreB;
+  const oppScore = isPlayerA ? match.scoreB : match.scoreA;
+  const won  = myScore > oppScore;
+
+  // Play win/lose sound on mount (after won is derived)
   React.useEffect(() => {
     if (won) sounds.win();
     else sounds.lose();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const myScore = isPlayerA ? match.scoreA : match.scoreB;
-  const oppScore = isPlayerA ? match.scoreB : match.scoreA;
-  const won = myScore > oppScore;
-  const tied = myScore === oppScore && match.winner === match.playerA; // tie goes to A
 
   function shortAddr(addr: string) {
     return addr.slice(0, 4) + '…' + addr.slice(-4);
   }
 
-  const blinksUrl = `https://cypher.sol/api/actions/challenge?from=${match.playerA}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`;
+  const blinksUrl = `https://cypher-duel.vercel.app/api/actions/challenge?matchId=${match.matchId}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`;
   const tweetText = encodeURIComponent(
-    `Just won a Cypher duel on Solana! 🎯 ${myScore} vs ${oppScore} pts on ${ASSET_NAMES[match.asset]}/USD.\n\nThink you can beat me? Accept the challenge:\n${blinksUrl}`
+    won
+      ? `Just won a Cypher duel on Solana — ${myScore} vs ${oppScore} pts on ${ASSET_NAMES[match.asset]}/USD.\n\nThink you can beat me? One-click accept:\n${blinksUrl}`
+      : `Took an L on Cypher — ${myScore} vs ${oppScore} pts on ${ASSET_NAMES[match.asset]}/USD. Rematch:\n${blinksUrl}`
   );
 
   return (
@@ -169,17 +168,36 @@ export default function ResultView() {
           </div>
 
           {/* Explorer links */}
-          <div className="text-center">
-            <a
-              href={`https://explorer.solana.com/address/${match.playerA}?cluster=devnet`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-[#555] hover:text-lime font-mono flex items-center justify-center gap-1 transition-colors"
-            >
-              <ExternalLink className="w-3 h-3" />
-              View match account on Solana Explorer
-            </a>
-          </div>
+          {!state.demoMode && (() => {
+            const matchIdBuf = Buffer.alloc(8);
+            matchIdBuf.writeBigUInt64LE(match.matchId);
+            const [matchPDA] = PublicKey.findProgramAddressSync(
+              [Buffer.from('match'), matchIdBuf],
+              PROGRAM_ID,
+            );
+            return (
+              <div className="flex flex-col items-center gap-1">
+                <a
+                  href={`https://explorer.solana.com/address/${matchPDA.toBase58()}?cluster=devnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#555] hover:text-[#111] font-mono flex items-center gap-1 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Match account on Solana Explorer
+                </a>
+                <a
+                  href={`https://explorer.solana.com/address/${PROGRAM_ID.toBase58()}?cluster=devnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#999] hover:text-[#555] font-mono flex items-center gap-1 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Program: {PROGRAM_ID.toBase58().slice(0, 8)}…
+                </a>
+              </div>
+            );
+          })()}
         </motion.div>
 
       </div>
