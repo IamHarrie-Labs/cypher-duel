@@ -15,23 +15,22 @@ const CARDS = [
 function FanCard({
   idx, total, fill, label, pts, id
 }: { idx: number; total: number; fill: string; label: string; pts: number; id: string }) {
-  const mid = (total - 1) / 2;
-  const angle = (idx - mid) * 13;
-  const yOff  = Math.abs(idx - mid) * 14;
+  const mid   = (total - 1) / 2;
+  const angle = (idx - mid) * 14;
+  const yOff  = Math.abs(idx - mid) * 18;
 
-  // pick icon color: white on dark fills, black on lime
   const iconColor = fill === '#8FC600' ? '#111' : 'white';
 
   return (
     <motion.div
-      whileHover={{ y: -28, transition: { duration: 0.18 } }}
+      whileHover={{ y: -36, transition: { duration: 0.18 } }}
       style={{
         position: 'absolute',
         bottom: 0,
         left: '50%',
-        marginLeft: -65,
-        width: 130,
-        height: 182,
+        marginLeft: -75,
+        width: 150,
+        height: 210,
         transform: `rotate(${angle}deg) translateY(${yOff}px)`,
         transformOrigin: 'bottom center',
         cursor: 'pointer',
@@ -42,42 +41,42 @@ function FanCard({
         background: 'white',
         border: '2.5px solid #111',
         boxShadow: '4px 4px 0 #111',
-        borderRadius: 10,
+        borderRadius: 12,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 12px 12px',
+        padding: '16px 14px 14px',
         position: 'relative',
       }}>
         {/* Corner ◆ */}
         <span style={{
-          position: 'absolute', top: 7, right: 9,
+          position: 'absolute', top: 8, right: 10,
           fontFamily: "'JetBrains Mono', monospace",
           fontSize: '0.6rem', color: '#ccc',
         }}>◆</span>
 
         {/* Icon circle */}
         <div style={{
-          width: 68, height: 68, borderRadius: '50%',
+          width: 80, height: 80, borderRadius: '50%',
           background: fill, marginTop: 10,
           border: fill === '#111' ? 'none' : '2px solid rgba(0,0,0,0.12)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <CardIcon id={id} size={32} color={iconColor} />
+          <CardIcon id={id} size={38} color={iconColor} />
         </div>
 
         {/* Label */}
         <div style={{ textAlign: 'center', marginTop: 8 }}>
           <p style={{
             fontFamily: "'Caveat', cursive",
-            fontSize: '1.05rem', fontWeight: 800, color: '#111',
+            fontSize: '1.15rem', fontWeight: 800, color: '#111',
             lineHeight: 1.1,
           }}>
             {label}
           </p>
           <p style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '0.68rem', color: '#FF2D78', fontWeight: 700,
-            marginTop: 2,
+            fontSize: '0.7rem', color: '#FF2D78', fontWeight: 700,
+            marginTop: 3,
           }}>
             +{pts} pts
           </p>
@@ -125,7 +124,7 @@ export default function CardShowcase() {
           </svg>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
 
           {/* ── LEFT: Card fan ── */}
           <motion.div
@@ -134,7 +133,7 @@ export default function CardShowcase() {
             viewport={{ once: true }}
             style={{
               position: 'relative',
-              height: 480,
+              height: 520,
               display: 'flex',
               alignItems: 'flex-end',
               justifyContent: 'center',

@@ -9,6 +9,7 @@ import NotFound from './pages/NotFound';
 import Index from './pages/Index';
 import Game from './pages/Game';
 import LeaderboardPage from './pages/Leaderboard';
+import DocsPage from './pages/Docs';
 
 import '@solana/wallet-adapter-react-ui/styles.css';
 
@@ -31,6 +32,7 @@ const App = () => {
             <Route path="/" element={<Index />} />
             <Route path="/game" element={<Game />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/docs" element={<DocsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <Toaster />

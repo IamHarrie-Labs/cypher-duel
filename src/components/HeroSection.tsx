@@ -1,8 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import TricksterA from './TricksterA';
-import TricksterB from './TricksterB';
 
 /* ── Live price ticker ─────────────────────────────────────── */
 const TICKER_ITEMS = [
@@ -158,43 +156,32 @@ export default function HeroSection() {
               </div>
             </motion.div>
 
-            {/* ── RIGHT: Two characters VS ── */}
+            {/* ── RIGHT: Hero VS image ── */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.15 }}
-              className="hidden lg:flex items-end justify-center gap-4"
-              style={{ position: 'relative', minHeight: 380, paddingTop: 40 }}
+              transition={{ duration: 0.7, delay: 0.15 }}
+              className="hidden lg:flex items-center justify-center"
+              style={{ position: 'relative', minHeight: 400 }}
             >
-              {/* TricksterA — left, facing right */}
-              <div style={{ transform: 'scaleX(1)' }}>
-                <TricksterA />
-              </div>
-
-              {/* VS badge — center */}
-              <div style={{ position: 'relative', zIndex: 10, flexShrink: 0, paddingBottom: 60 }}>
-                <div
-                  style={{
-                    background: 'white',
-                    border: '3px solid #111',
-                    boxShadow: '5px 5px 0 #111',
-                    width: 72, height: 72,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    borderRadius: 4,
-                    transform: 'rotate(-6deg)',
-                  }}
-                >
-                  <span style={{
-                    fontFamily: "'Caveat', cursive",
-                    fontSize: '1.6rem', fontWeight: 800, color: '#111',
-                  }}>VS</span>
-                </div>
-              </div>
-
-              {/* TricksterB — right, mirrored (facing left) */}
-              <div style={{ transform: 'scaleX(-1)' }}>
-                <TricksterB />
-              </div>
+              {/*
+                mix-blend-mode: screen makes the pure-black (#000) background
+                of the image disappear against the cream (#F0EDDA) landing-bg,
+                leaving only the white/lime character artwork visible.
+              */}
+              <img
+                src="/hero-vs.png"
+                alt="Two traders face off in Cypher arena"
+                style={{
+                  width: '100%',
+                  maxWidth: 580,
+                  objectFit: 'contain',
+                  mixBlendMode: 'screen',
+                  filter: 'contrast(1.05) brightness(1.02)',
+                  userSelect: 'none',
+                  pointerEvents: 'none',
+                }}
+              />
             </motion.div>
           </div>
         </div>

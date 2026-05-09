@@ -8,7 +8,7 @@ const LINKS_COL1 = [
 ];
 const LINKS_COL2 = [
   { label: 'deck',    href: '#cards' },
-  { label: 'docs',    href: '#playbook' },
+  { label: 'docs',    href: '/docs' },
   { label: 'github',  href: 'https://github.com' },
   { label: 'discord', href: 'https://discord.com' },
 ];

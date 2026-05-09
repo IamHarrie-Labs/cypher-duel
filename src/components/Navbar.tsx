@@ -12,7 +12,7 @@ const landingLinks = [
   { label: 'HOW IT WORKS',  href: '#how-it-works' },
   { label: 'CARDS',         href: '#cards' },
   { label: 'LEADERBOARD',   href: '/leaderboard' },
-  { label: 'DOCS',          href: '#playbook' },
+  { label: 'DOCS',          href: '/docs' },
 ];
 
 const Navbar: React.FC<NavbarProps> = ({ gameMode = false, demoMode = false }) => {
