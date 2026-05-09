@@ -1,6 +1,57 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import TricksterA from './TricksterA';
+import TricksterB from './TricksterB';
+
+const HERO_IMAGE = '/hero-vs.png';
+
+/* ── Hero illustration — image if available, SVG mascots as fallback ── */
+function HeroIllustration() {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (!imgFailed) {
+    return (
+      <img
+        src={HERO_IMAGE}
+        alt="Two traders face off in Cypher arena"
+        onError={() => setImgFailed(true)}
+        style={{
+          width: '100%',
+          maxWidth: 600,
+          objectFit: 'contain',
+          // screen blend: black bg disappears against cream, white/lime art stays
+          mixBlendMode: 'screen',
+          filter: 'contrast(1.05) brightness(1.02)',
+          userSelect: 'none',
+          pointerEvents: 'none',
+        }}
+      />
+    );
+  }
+
+  // Fallback: original SVG mascots + VS badge
+  return (
+    <div className="flex items-end justify-center gap-4" style={{ position: 'relative', minHeight: 380, paddingTop: 40, width: '100%' }}>
+      <div style={{ transform: 'scaleX(1)' }}>
+        <TricksterA />
+      </div>
+      <div style={{ position: 'relative', zIndex: 10, flexShrink: 0, paddingBottom: 60 }}>
+        <div style={{
+          background: 'white', border: '3px solid #111',
+          boxShadow: '5px 5px 0 #111', width: 72, height: 72,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 4, transform: 'rotate(-6deg)',
+        }}>
+          <span style={{ fontFamily: "'Caveat', cursive", fontSize: '1.6rem', fontWeight: 800, color: '#111' }}>VS</span>
+        </div>
+      </div>
+      <div style={{ transform: 'scaleX(-1)' }}>
+        <TricksterB />
+      </div>
+    </div>
+  );
+}
 
 /* ── Live price ticker ─────────────────────────────────────── */
 const TICKER_ITEMS = [
@@ -156,7 +207,7 @@ export default function HeroSection() {
               </div>
             </motion.div>
 
-            {/* ── RIGHT: Hero VS image ── */}
+            {/* ── RIGHT: Hero VS illustration ── */}
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -164,24 +215,7 @@ export default function HeroSection() {
               className="hidden lg:flex items-center justify-center"
               style={{ position: 'relative', minHeight: 400 }}
             >
-              {/*
-                mix-blend-mode: screen makes the pure-black (#000) background
-                of the image disappear against the cream (#F0EDDA) landing-bg,
-                leaving only the white/lime character artwork visible.
-              */}
-              <img
-                src="/hero-vs.png"
-                alt="Two traders face off in Cypher arena"
-                style={{
-                  width: '100%',
-                  maxWidth: 580,
-                  objectFit: 'contain',
-                  mixBlendMode: 'screen',
-                  filter: 'contrast(1.05) brightness(1.02)',
-                  userSelect: 'none',
-                  pointerEvents: 'none',
-                }}
-              />
+              <HeroIllustration />
             </motion.div>
           </div>
         </div>
