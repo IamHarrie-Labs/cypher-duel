@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import TricksterA from './TricksterA';
 import TricksterB from './TricksterB';
 
-const HERO_IMAGE = '/hero-vs.png';
+const HERO_IMAGE = '/hero-vs.jpg';
 
 /* ── Hero illustration — image if available, SVG mascots as fallback ── */
 function HeroIllustration() {
@@ -12,21 +12,28 @@ function HeroIllustration() {
 
   if (!imgFailed) {
     return (
-      <img
-        src={HERO_IMAGE}
-        alt="Two traders face off in Cypher arena"
-        onError={() => setImgFailed(true)}
-        style={{
-          width: '100%',
-          maxWidth: 600,
-          objectFit: 'contain',
-          // screen blend: black bg disappears against cream, white/lime art stays
-          mixBlendMode: 'screen',
-          filter: 'contrast(1.05) brightness(1.02)',
-          userSelect: 'none',
-          pointerEvents: 'none',
-        }}
-      />
+      <div style={{
+        width: '100%',
+        maxWidth: 620,
+        background: '#0a0a0a',
+        border: '2.5px solid #111',
+        boxShadow: '6px 6px 0 #111',
+        overflow: 'hidden',
+        borderRadius: 4,
+      }}>
+        <img
+          src={HERO_IMAGE}
+          alt="Two traders face off in Cypher arena"
+          onError={() => setImgFailed(true)}
+          style={{
+            width: '100%',
+            display: 'block',
+            objectFit: 'cover',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        />
+      </div>
     );
   }
 
