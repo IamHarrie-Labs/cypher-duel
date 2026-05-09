@@ -12,15 +12,7 @@ function HeroIllustration() {
 
   if (!imgFailed) {
     return (
-      <div style={{
-        width: '100%',
-        maxWidth: 620,
-        background: '#0a0a0a',
-        border: '2.5px solid #111',
-        boxShadow: '6px 6px 0 #111',
-        overflow: 'hidden',
-        borderRadius: 4,
-      }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 620 }}>
         <img
           src={HERO_IMAGE}
           alt="Two traders face off in Cypher arena"
@@ -28,11 +20,21 @@ function HeroIllustration() {
           style={{
             width: '100%',
             display: 'block',
-            objectFit: 'cover',
+            objectFit: 'contain',
+            // invert: black bg → white (blends into cream), white outlines → dark ink art
+            filter: 'invert(1)',
             userSelect: 'none',
             pointerEvents: 'none',
           }}
         />
+        {/* Vignette fades edges into cream */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: `
+            linear-gradient(to right,  #F0EDDA 0%, transparent 22%, transparent 78%, #F0EDDA 100%),
+            linear-gradient(to bottom, #F0EDDA 0%, transparent 8%,  transparent 72%, #F0EDDA 100%)
+          `,
+        }} />
       </div>
     );
   }
