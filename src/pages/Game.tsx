@@ -173,55 +173,59 @@ function GameInner() {
     <div className="relative min-h-screen landing-bg">
       <Navbar gameMode demoMode={state.demoMode} />
 
-      {/* Wallet guard — only for non-demo lobby */}
-      {phase === 'LOBBY' && !publicKey && !isDemoMode && !isDemo && (
-        <div className="min-h-screen pt-20 flex items-center justify-center px-4">
+      <AnimatePresence mode="wait">
+        {phase === 'LOBBY' && !publicKey && !isDemoMode && !isDemo ? (
+          /* Wallet gate — gets its own key so AnimatePresence can transition it out cleanly */
           <motion.div
+            key="CONNECT"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.25 }}
+            className="min-h-screen pt-20 flex items-center justify-center px-4"
           >
-            <div style={{ background: 'white', border: '2.5px solid #111', boxShadow: '6px 6px 0 #111', padding: '48px 40px' }}>
-              <div style={{ width: 64, height: 64, background: '#C8FF00', border: '2.5px solid #111', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-                <Wallet style={{ width: 28, height: 28, color: '#111' }} />
-              </div>
-              <h2 style={{ fontFamily: "'Caveat', cursive", fontSize: '2rem', fontWeight: 800, color: '#111', marginBottom: 12 }}>
-                Connect to play
-              </h2>
-              <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '0.88rem', color: '#666', lineHeight: 1.6, marginBottom: 28 }}>
-                You need a Phantom or Solflare wallet with some devnet SOL to enter the arena.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-                <WalletMultiButton />
-                <button
-                  onClick={() => { window.location.search = '?demo=true'; }}
-                  style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: '0.8rem', color: '#555', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
-                >
-                  Or try the free demo match →
-                </button>
+            <div style={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
+              <div style={{ background: 'white', border: '2.5px solid #111', boxShadow: '6px 6px 0 #111', padding: '48px 40px' }}>
+                <div style={{ width: 64, height: 64, background: '#C8FF00', border: '2.5px solid #111', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+                  <Wallet style={{ width: 28, height: 28, color: '#111' }} />
+                </div>
+                <h2 style={{ fontFamily: "'Caveat', cursive", fontSize: '2rem', fontWeight: 800, color: '#111', marginBottom: 12 }}>
+                  Connect to play
+                </h2>
+                <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '0.88rem', color: '#666', lineHeight: 1.6, marginBottom: 28 }}>
+                  You need a Phantom or Solflare wallet with some devnet SOL to enter the arena.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+                  <WalletMultiButton />
+                  <button
+                    onClick={() => { window.location.search = '?demo=true'; }}
+                    style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: '0.8rem', color: '#555', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Or try the free demo match →
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
-        </div>
-      )}
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={phase}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -12 }}
-          transition={{ duration: 0.25 }}
-        >
-          {phase === 'LOBBY' && (publicKey || isDemoMode || isDemo) && <MatchLobby />}
-          {phase === 'WAITING' && <WaitingForOpponent />}
-          {phase === 'DRAFT' && <CardHand />}
-          {phase === 'COMMIT' && <CardHand />}
-          {phase === 'WAITING_REVEAL' && <WaitingForReveal />}
-          {phase === 'BATTLE' && <BattleView />}
-          {phase === 'SETTLE' && <SettleView />}
-          {phase === 'RESULT' && <ResultView />}
-        </motion.div>
+        ) : (
+          /* All game phases share a key derived from phase — AnimatePresence transitions between them */
+          <motion.div
+            key={phase}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.25 }}
+          >
+            {phase === 'LOBBY' && <MatchLobby />}
+            {phase === 'WAITING' && <WaitingForOpponent />}
+            {phase === 'DRAFT' && <CardHand />}
+            {phase === 'COMMIT' && <CardHand />}
+            {phase === 'WAITING_REVEAL' && <WaitingForReveal />}
+            {phase === 'BATTLE' && <BattleView />}
+            {phase === 'SETTLE' && <SettleView />}
+            {phase === 'RESULT' && <ResultView />}
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Phase breadcrumb */}
