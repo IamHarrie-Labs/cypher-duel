@@ -57,8 +57,13 @@ function WaitingForOpponent() {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
 
-  // Poll for opponent every 4 s — checks both the chain and the sync API
-  // so it works regardless of whether the match is on-chain or demo-mode.
+  // Poll the match-sync API every 4 s to detect when Player B joins.
+  // We no longer use the raw on-chain byte check here — the field offsets in
+  // fetchMatchState depend on whether the Rust struct has a bump field, and
+  // a wrong offset makes playerB and state appear set on a fresh match,
+  // causing an immediate false advance. The sync API is authoritative: Player B
+  // always posts to it inside handleJoinMatch right after their tx confirms.
+  const matchCreatedAt = match?.createdAt ?? 0;
   useEffect(() => {
     if (!match) return;
     const matchId = match.matchId;
@@ -73,29 +78,16 @@ function WaitingForOpponent() {
 
     async function poll() {
       if (advanced) return;
-
-      // 1. Check on-chain account (works when arenaConfig is initialized).
-      // Require state > 0 to confirm the join tx has landed — guards against
-      // stale or offset-misaligned playerB bytes triggering a false advance.
-      try {
-        const chainResult = await fetchMatchState(connection, matchId);
-        if (chainResult?.playerB && chainResult.state > 0) { advance(chainResult.playerB); return; }
-      } catch { /* ignore */ }
-
-      // 2. Fallback: check the match-sync API (works in demo mode).
-      // Only advance if the join happened AFTER this match was created —
-      // guards against stale Lambda records from a previous session triggering
-      // an immediate false advance.
       try {
         const res = await fetch(`/api/match-sync?matchId=${matchId.toString()}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.playerB && data.joinedAt > (match?.createdAt ?? 0)) {
-            advance(data.playerB);
-            return;
-          }
+        if (!res.ok) return;
+        const data = await res.json();
+        // Only advance if the join record was written AFTER this match was
+        // created — guards against stale Lambda records from a prior session.
+        if (data?.playerB && data.joinedAt > matchCreatedAt) {
+          advance(data.playerB);
         }
-      } catch { /* ignore */ }
+      } catch { /* ignore network errors */ }
     }
 
     const interval = setInterval(poll, 4000);
