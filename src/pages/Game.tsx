@@ -82,21 +82,24 @@ function WaitingForOpponent() {
         if (chainResult?.playerB && chainResult.state > 0) { advance(chainResult.playerB); return; }
       } catch { /* ignore */ }
 
-      // 2. Fallback: check the match-sync API (works in demo mode)
+      // 2. Fallback: check the match-sync API (works in demo mode).
+      // Only advance if the join happened AFTER this match was created —
+      // guards against stale Lambda records from a previous session triggering
+      // an immediate false advance.
       try {
         const res = await fetch(`/api/match-sync?matchId=${matchId.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          if (data?.playerB) { advance(data.playerB); return; }
+          if (data?.playerB && data.joinedAt > (match?.createdAt ?? 0)) {
+            advance(data.playerB);
+            return;
+          }
         }
       } catch { /* ignore */ }
     }
 
-    // Delay the first poll by 3 s so the waiting screen is always visible
-    // for a moment before any transition, then continue every 4 s.
-    const firstPoll = setTimeout(poll, 3000);
     const interval = setInterval(poll, 4000);
-    return () => { clearTimeout(firstPoll); clearInterval(interval); };
+    return () => clearInterval(interval);
   }, [match?.matchId]);
 
   if (!match) {
