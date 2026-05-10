@@ -74,7 +74,7 @@ function WaitingForOpponent() {
     );
   }
 
-  const blinksUrl = `${import.meta.env.VITE_APP_URL ?? ''}/api/actions/challenge?matchId=${match.matchId.toString()}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`;
+  const blinksUrl = `${window.location.origin}/api/actions/challenge?matchId=${match.matchId.toString()}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`;
 
   return (
     <div className="min-h-screen pt-20 flex items-center justify-center px-4">
