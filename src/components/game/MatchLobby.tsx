@@ -60,14 +60,33 @@ export default function MatchLobby() {
   }, [program]);
 
   async function loadConfig() {
-    if (!program) return;
+    if (!program || !publicKey) return;
     try {
       const accountClient = (program.account as any)?.arenaConfig;
       if (!accountClient) return;
       const config = await accountClient.fetch(configPDA);
-      setConfigTotalMatches(BigInt(config.totalMatches.toString()));
-    } catch {
-      // config not initialized or IDL missing type
+      // field may be total_matches (snake) or totalMatches (camel) depending on IDL version
+      const total = config.total_matches ?? config.totalMatches;
+      setConfigTotalMatches(BigInt(total.toString()));
+    } catch (e: any) {
+      const msg: string = e?.message ?? '';
+      // Account doesn't exist yet — initialize it so real matches can be created
+      if (msg.includes('Account does not exist') || msg.includes('not found') || msg.includes('could not find')) {
+        console.log('[Lobby] arenaConfig missing — calling initialize_config');
+        try {
+          const TREASURY = new anchor.web3.PublicKey('7FzTczMDCTvxuiLdBT15ryp1a55FBDVs4Xz5p989C41U');
+          await program.methods
+            .initializeConfig(250, TREASURY)
+            .rpc();
+          console.log('[Lobby] arenaConfig initialized ✓');
+          // Re-fetch after init
+          const config2 = await (program.account as any).arenaConfig.fetch(configPDA);
+          const total2 = config2.total_matches ?? config2.totalMatches ?? BigInt(0);
+          setConfigTotalMatches(BigInt(total2.toString()));
+        } catch (initErr: any) {
+          console.warn('[Lobby] initialize_config failed:', initErr?.message ?? initErr);
+        }
+      }
     }
   }
 

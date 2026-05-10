@@ -4,6 +4,7 @@ import { Users, Loader2, Wallet } from 'lucide-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useGame, GameProvider } from '../store/game-store';
 import { streamPrice, fetchLatestPrice } from '../lib/pyth';
+import { fetchMatchState } from '../lib/anchor-client';
 import { ASSET_NAMES } from '../lib/constants';
 import MatchLobby from '../components/game/MatchLobby';
 import CardHand from '../components/game/CardHand';
@@ -54,12 +55,30 @@ function WaitingForOpponent() {
   const { state, dispatch } = useGame();
   const match = state.match;
   const { publicKey } = useWallet();
+  const { connection } = useConnection();
 
-  // Poll until opponent joins (placeholder — real impl polls the match account)
+  // Poll the on-chain match account every 5 s to detect when Player B joins
   useEffect(() => {
-    const interval = setInterval(() => {}, 5000);
+    if (!match) return;
+    const matchId = match.matchId;
+
+    async function poll() {
+      const result = await fetchMatchState(connection, matchId);
+      if (!result) return;
+      if (result.playerB) {
+        // Opponent joined — update local match state and advance to DRAFT
+        dispatch({
+          type: 'SET_MATCH',
+          match: { ...match!, playerB: result.playerB, state: result.state },
+        });
+        dispatch({ type: 'SET_PHASE', phase: 'DRAFT' });
+      }
+    }
+
+    poll(); // immediate first check
+    const interval = setInterval(poll, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [match?.matchId]);
 
   if (!match) {
     return (

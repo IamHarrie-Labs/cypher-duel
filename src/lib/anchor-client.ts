@@ -2,9 +2,11 @@ import * as anchor from '@coral-xyz/anchor';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { AnchorWallet } from '@solana/wallet-adapter-react';
 import { PROGRAM_ID } from './constants';
-import { computeCommitHash } from './crypto';
 
 // IDL from deployed program EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN (slot 461111930)
+// types[] added manually — the on-chain IDL omitted them, causing anchor.Program() to throw.
+// Field order inferred from the memcmp filter in MatchLobby (state at byte offset 81):
+//   discriminator(8) + playerA(32) + playerB(32) + asset(1) + stakeAmount(8) = 81, then state(1)
 const IDL: anchor.Idl = {
   address: 'EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN',
   metadata: { name: 'workspace', version: '0.1.0', spec: '0.1.0', description: 'Cypher — deployed on devnet' },
@@ -129,14 +131,55 @@ const IDL: anchor.Idl = {
     { name: 'ArenaConfig', discriminator: [9, 186, 181, 145, 197, 50, 33, 38] },
     { name: 'MatchAccount', discriminator: [235, 36, 243, 39, 81, 16, 144, 87] },
   ],
-  types: [],
+  // Type definitions inferred from on-chain layout so anchor.Program() can construct
+  // account namespaces without throwing "Account not found".
+  types: [
+    {
+      name: 'ArenaConfig',
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'authority', type: 'pubkey' },
+          { name: 'treasury', type: 'pubkey' },
+          { name: 'fee_bps', type: 'u16' },
+          { name: 'total_matches', type: 'u64' },
+        ],
+      },
+    },
+    {
+      name: 'MatchAccount',
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'player_a', type: 'pubkey' },
+          { name: 'player_b', type: 'pubkey' },
+          { name: 'asset', type: 'u8' },
+          { name: 'stake_amount', type: 'u64' },
+          { name: 'state', type: 'u8' },
+          { name: 'match_id', type: 'u64' },
+          { name: 'start_price', type: 'i64' },
+          { name: 'end_price', type: 'i64' },
+          { name: 'high_price', type: 'i64' },
+          { name: 'low_price', type: 'i64' },
+          { name: 'commit_hash_a', type: { array: ['u8', 32] } },
+          { name: 'commit_hash_b', type: { array: ['u8', 32] } },
+          { name: 'cards_a', type: { array: ['u8', 3] } },
+          { name: 'directions_a', type: { array: ['u8', 3] } },
+          { name: 'snipe_target_a', type: 'i64' },
+          { name: 'cards_b', type: { array: ['u8', 3] } },
+          { name: 'directions_b', type: { array: ['u8', 3] } },
+          { name: 'snipe_target_b', type: 'i64' },
+          { name: 'score_a', type: 'u8' },
+          { name: 'score_b', type: 'u8' },
+          { name: 'winner', type: 'pubkey' },
+          { name: 'created_at', type: 'i64' },
+        ],
+      },
+    },
+  ],
 } as unknown as anchor.Idl;
 
 export function getProgram(connection: Connection, wallet: AnchorWallet): anchor.Program | null {
-  // The deployed devnet IDL is missing type definitions for ArenaConfig and MatchAccount,
-  // which causes anchor.Program(...) to throw "Account not found: <name>" synchronously
-  // when constructed. We catch that here so callers get null and fall back to demo mode
-  // instead of crashing render trees.
   try {
     const provider = new anchor.AnchorProvider(connection, wallet, {
       commitment: 'confirmed',
@@ -171,4 +214,27 @@ export function solToLamports(sol: number): bigint {
 
 export function lamportsToSol(lamports: bigint | number): number {
   return Number(lamports) / LAMPORTS_PER_SOL;
+}
+
+// Fetch raw match account data and parse playerB + state without relying on
+// Anchor's deserializer (which needs correct type field ordering).
+// Layout: disc(8) + playerA(32) + playerB(32) + asset(1) + stakeAmount(8) + state(1) + ...
+export async function fetchMatchState(
+  connection: Connection,
+  matchId: bigint,
+): Promise<{ playerB: string | null; state: number } | null> {
+  try {
+    const [matchPDA] = getMatchPDA(matchId);
+    const info = await connection.getAccountInfo(matchPDA, 'confirmed');
+    if (!info) return null;
+    const data = info.data;
+    // playerB starts at byte 40 (8 disc + 32 playerA)
+    const playerBBytes = data.slice(40, 72);
+    const isDefault = playerBBytes.every(b => b === 0);
+    const playerB = isDefault ? null : new PublicKey(playerBBytes).toBase58();
+    const state = data[81]; // byte 81 = state field
+    return { playerB, state };
+  } catch {
+    return null;
+  }
 }
