@@ -1,157 +1,151 @@
-# Cypher — 1v1 sealed-bid price-prediction combat, settled on Solana.
+<div align="center">
 
-> **Dev3Pack Hackathon — Best App Overall + x402 Bonus Track**
+# ⚔️ CYPHER
 
-[![Demo](https://img.shields.io/badge/▶_Live_Demo-cypher--duel.vercel.app-C8FF00?style=flat&labelColor=111)](https://cypher-duel.vercel.app)
-[![Program](https://img.shields.io/badge/Program-EegqHg...KhXN-555?style=flat&labelColor=111)](https://explorer.solana.com/address/EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN?cluster=devnet)
+### 1v1 Sealed-Bid Price-Prediction Combat on Solana
+
+*Stake SOL. Pick cards. Battle live Pyth prices. Winner takes the pot — all on-chain.*
+
+[![Live App](https://img.shields.io/badge/▶_PLAY_NOW-playcypher.vercel.app-C8FF00?style=for-the-badge&labelColor=111111)](https://playcypher.vercel.app)
+[![Demo Video](https://img.shields.io/badge/▶_DEMO_VIDEO-Loom-00D8FF?style=for-the-badge&labelColor=111111)](https://www.loom.com/share/fcc23d89ef7a4a84afdf056f23f7fe92)
+[![Program](https://img.shields.io/badge/PROGRAM-Devnet-9945FF?style=for-the-badge&labelColor=111111)](https://explorer.solana.com/address/EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN?cluster=devnet)
+[![Twitter](https://img.shields.io/badge/FOLLOW-@Play__Cypher-1DA1F2?style=for-the-badge&labelColor=111111)](https://twitter.com/Play_Cypher)
+
+</div>
 
 ---
 
-## Demo
+## What Is Cypher?
 
-> 90-second walkthrough: create match → draft 3 cards → watch live Pyth feed → reveal → settle → trophy
+Cypher is a **1v1 on-chain prediction duel** where two players go head-to-head on live crypto prices. No house edge, no admin keys, no trusted intermediary — just two wallets, a shared vault, and 60 seconds of Pyth Oracle price action.
 
-**[▶ Watch demo video](https://youtu.be/TODO)** · **[Try demo match (no wallet needed)](https://cypher-duel.vercel.app/game?demo=true)**
+**The catch:** you never see your opponent's picks until both hands are on the table. Every play is SHA-256 committed on-chain before the battle starts. No last-minute switches. No cheating. Pure strategy.
 
 ---
 
-## Live Evidence
+## Watch It In Action
 
-| Artifact | Link |
-|---|---|
-| Deployed program | [`EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN`](https://explorer.solana.com/address/EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN?cluster=devnet) · slot 461111930 |
-| Sample `create_match` tx | [explorer.solana.com/tx/TODO](https://explorer.solana.com/tx/TODO?cluster=devnet) |
-| Sample `settle_match` tx | [explorer.solana.com/tx/TODO](https://explorer.solana.com/tx/TODO?cluster=devnet) |
-| Working Blink | `https://cypher-duel.vercel.app/api/actions/challenge?asset=BTC&stake=0.05` |
-| x402 feed (returns 402) | `https://cypher-duel.vercel.app/api/x402/feed?matchId=0` |
-| actions.json | [`/actions.json`](https://cypher-duel.vercel.app/actions.json) |
+> 📹 [**Full Demo on Loom**](https://www.loom.com/share/fcc23d89ef7a4a84afdf056f23f7fe92) — create match → draft cards → commit on-chain → battle live Pyth prices → settle → winner claimed
+
+Or jump straight in: **[playcypher.vercel.app/game?demo=true](https://playcypher.vercel.app/game?demo=true)** — no wallet required.
 
 ---
 
 ## How It Works
 
-**Sealed-bid commit-reveal.** Before a match starts, each player picks 3 prediction cards and a direction. They SHA-256 hash their picks with a 32-byte random salt and submit only the hash on-chain (`commit_plays`). Neither player can see the other's hand until both have committed. After the 60-second Pyth oracle window closes, both players call `reveal_plays` with their plaintext picks; the program re-derives the hash and panics if it mismatches. No server holds state. No frontend can cheat.
+```
+Player A                              Player B
+────────                              ────────
+Create Match                          Accept via Blink URL / Lobby
+    │                                     │
+    └──── Both stake SOL into vault ──────┘
+               │
+         Pick 3 Cards
+    (hidden from opponent)
+               │
+    SHA-256 hash committed on-chain
+    (commit_plays — immutable)
+               │
+         ⏱ 60 Seconds
+    Live Pyth Oracle price stream
+               │
+    Both reveal picks (reveal_plays)
+    Program verifies hash matches
+               │
+    settle_match scores both hands
+    Pot transferred to winner's wallet
+```
 
-**Deterministic card scoring in Rust.** Six card types each trigger against live Pyth price data captured at match start and end. PULSE (+10) rewards any movement above 0.3%. SNIPE (+75) rewards touching an exact price target within $50. CALM (+50) rewards flat price action. The scoring function in `lib.rs` is fully deterministic — same inputs, same output, every time. Max possible score is 190 pts; the higher total wins the pot.
+### The 6 Prediction Cards
 
-**Escrow-free settlement.** A vault PDA holds 2× the stake. `settle_match` transfers the full pot to the winner in the same instruction that scores the cards. The protocol collects 250 bps (2.5%). If an opponent misses the reveal window, `claim_forfeit` lets the revealer claim the pot minus a grace fee. No admin key, no upgrade authority on the escrow.
+| Card | Trigger | Points |
+|------|---------|--------|
+| **PULSE** | Price moves >0.3% either way | +10 |
+| **TILT** | Closes in your predicted direction | +15 |
+| **SURGE** | Moves >1% in your predicted direction | +30 |
+| **CALM** | Price never moves >0.2% from open | +50 |
+| **WHIPLASH** | Price hits both above and below open | +60 |
+| **SNIPE** | Price touches your exact target ±$50 | +75 |
+
+**Max score: 190 pts. Higher total wins the pot.**
 
 ---
 
-## Sponsor Integration Matrix
+## Solana Actions / Blinks
 
-| Sponsor | What We Use | Mechanism | Code | Tx / Evidence |
-|---|---|---|---|---|
-| **Pyth Network** | Hermes `/v2/updates/price/latest` | Streams BTC/ETH/SOL price every 2s during DRAFT + BATTLE + SETTLE; start and end prices written on-chain at `join_match` and `settle_match` | [`src/lib/pyth.ts`](src/lib/pyth.ts) | [sample settle tx](https://explorer.solana.com/tx/TODO?cluster=devnet) |
-| **Solana Actions / Blinks** | `ActionGetResponse` + serialized tx | `GET /api/actions/challenge` returns 3 stake tiers; `POST` builds and returns a `join_match` transaction; `actions.json` at root; any challenge URL becomes a Blink card on X | [`vite.config.ts`](vite.config.ts) plugin | [blink URL](https://cypher-duel.vercel.app/api/actions/challenge?asset=BTC&stake=0.05) |
-| **x402** | HTTP 402 spectator feed | `GET /api/x402/feed?matchId=N` returns `402 Payment Required` with `X-Payment-Scheme: x402` and lamport amount; valid payment header returns live match JSON | [`vite.config.ts`](vite.config.ts) plugin | `curl https://cypher-duel.vercel.app/api/x402/feed?matchId=0` |
-| **Metaplex Bubblegum** | cNFT trophy on match win | `settle_match` calls `mint_to_collection_v1` via CPI; winner receives a compressed NFT trophy with match metadata (asset, scores, tx) | [`contracts/programs/cypher/src/lib.rs`](contracts/programs/cypher/src/lib.rs) | [TODO: cNFT mint tx] |
-| **Helius** | Webhook indexer | `POST /api/webhooks/helius` receives Helius `CUSTOM` events for `EegqHg…` program address; filters `settle_match` instructions, logs signatures, ready to upsert to leaderboard DB | [`vite.config.ts`](vite.config.ts) webhook handler | `curl -X POST /api/webhooks/helius -d '[{"type":"CUSTOM",...}]'` |
-| **Switchboard VRF** | Verifiable card shuffle | On `join_match`, a Switchboard VRF request seeds the deterministic deck order so neither player can predict draw order | [`contracts/programs/cypher/src/lib.rs`](contracts/programs/cypher/src/lib.rs) | [TODO: VRF request tx] |
-
----
-
-## The 6 Prediction Cards
-
-| # | Card | Trigger Condition | Points |
-|---|---|---|---|
-| 0 | PULSE | Price moves >0.3% either way | +10 |
-| 1 | TILT | Closes in your predicted direction | +15 |
-| 2 | SURGE | Moves >1% in your predicted direction | +30 |
-| 3 | SNIPE | Price touches your exact target ±$50 | +75 |
-| 4 | WHIPLASH | Price reverses — hits both above and below open | +60 |
-| 5 | CALM | Price never moves >0.2% from open | +50 |
-
-**Max possible score: 190 pts.** Higher total wins the pot.
-
----
-
-## Commit-Reveal Hash
+Challenge anyone on X with a single URL. Paste it in a tweet — Phantom and Backpack render it as an interactive card. One click, one signature, you're in.
 
 ```
-commit_hash = SHA256(
-  cards[3]           // 3 bytes: card IDs 0–5
-  directions[3]      // 3 bytes: 0=up  1=down  2=neutral
-  snipe_target_le8   // 8 bytes: i64 little-endian (Pyth raw price units)
-  salt[32]           // 32 bytes: crypto.getRandomValues()
+https://playcypher.vercel.app/api/actions/challenge?matchId=5&asset=SOL&stake=0.05
+```
+
+The endpoint:
+- **GET** → returns a Blink metadata card with accept buttons for 0.01 / 0.05 / 0.1 SOL
+- **POST** → builds and returns a serialized `join_match` transaction for the wallet to sign
+- **`/actions.json`** → registered with Dialect so all Cypher URLs are recognized Blinks
+
+---
+
+## On-Chain Architecture
+
+```
+Anchor Program: EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN  (Devnet)
+
+Instructions
+├── initialize_config   One-time protocol setup (fee bps + treasury)
+├── create_match        Open vault PDA, stake SOL, set asset + match ID
+├── join_match          Player B joins, locks in Pyth start price
+├── commit_plays        Store SHA-256(cards | directions | snipe | salt) on-chain
+├── reveal_plays        Verify hash matches plaintext, store picks
+├── settle_match        Score both hands, transfer pot to winner
+├── cancel_match        Creator cancels before opponent joins (full refund)
+└── claim_forfeit       Claim pot if opponent misses 120s reveal window
+
+PDAs
+├── arena_config        ["arena_config"]          — fee, treasury, match counter
+├── match_account       ["match", match_id_le8]   — full match state
+└── vault               ["vault", match_id_le8]   — 2× stake escrow
+```
+
+### Commit-Reveal Hash
+
+```
+commit_hash = SHA-256(
+  cards[3]           // card IDs  (3 bytes)
+  directions[3]      // up/down/neutral  (3 bytes)
+  snipe_target_le8   // i64 little-endian Pyth raw units  (8 bytes)
+  salt[32]           // crypto.getRandomValues()  (32 bytes)
 )
 ```
 
-The Anchor program re-derives this hash from revealed plaintext and panics on mismatch. Mirror implementation in TypeScript: [`src/lib/crypto.ts`](src/lib/crypto.ts).
+The Anchor program re-derives this hash on reveal and panics on mismatch. TypeScript mirror: [`src/lib/crypto.ts`](src/lib/crypto.ts).
 
 ---
 
-## On-Chain Scoring (Rust)
+## Tech Stack
 
-```rust
-fn score_card(card: u8, dir: u8, snipe: i64, start: i64, end: i64, high: i64, low: i64) -> u32 {
-    match card {
-        0 => if abs(end-start)*1000/start > 3 { 10 } else { 0 },   // PULSE  >0.3%
-        1 => if (dir==0 && end>start)||(dir==1 && end<start) { 15 } else { 0 }, // TILT
-        2 => if direction_move*1000/start > 10 { 30 } else { 0 },  // SURGE  >1%
-        3 => if high >= snipe-5_000_000_000 && low <= snipe+5_000_000_000 { 75 } else { 0 }, // SNIPE
-        4 => if high > start && low < start { 60 } else { 0 },     // WHIPLASH
-        5 => if max_deviation <= 2 { 50 } else { 0 },              // CALM  <0.2%
-        _ => 0,
-    }
-}
-```
+| Layer | Technology |
+|-------|-----------|
+| Smart contract | Anchor 0.30 · Rust · Solana Devnet |
+| Price oracle | Pyth Hermes (`/v2/updates/price/latest`) — BTC/ETH/SOL |
+| Viral sharing | Solana Actions / Blinks |
+| Frontend | React 18 · Vite · Tailwind CSS · Framer Motion |
+| Wallet | `@solana/wallet-adapter` — Phantom, Backpack, Solflare, OKX |
+| Charts | Recharts (live 60s price feed) |
+| Deployment | Vercel (frontend + serverless Blinks API) |
 
 ---
 
-## Architecture
+## Program Details
 
-```
-Frontend (React + Vite + Tailwind)
-  src/lib/pyth.ts           Hermes HTTP polling, 2s during battle
-  src/lib/anchor-client.ts  Inline IDL, PDA derivation, tx builders
-  src/lib/crypto.ts         SubtleCrypto SHA-256, mirrors on-chain hash
-  src/lib/sounds.ts         Web Audio API oscillator SFX (no assets)
-  src/store/game-store.tsx  useReducer state machine (8 phases)
-  src/components/game/
-    MatchLobby.tsx           Create/join, open match list
-    CardHand.tsx             3-slot picker, direction, snipe target, commit tx
-    BattleView.tsx           60s ring timer, live Recharts feed, reveal tx
-    SettleView.tsx           Price summary, card results, settle tx
-    ResultView.tsx           Score breakdown, cNFT trophy, Blink share to X
-  vite.config.ts            Solana Actions middleware + x402 spectator feed
-
-Anchor Program  EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN
-  create_match    Open escrow PDA, stake SOL
-  join_match      Second player joins, record start_price from Pyth
-  commit_plays    Store SHA-256 hash on-chain
-  reveal_plays    Verify hash, store plaintext plays
-  settle_match    Score both players, transfer pot, mint cNFT trophy
-  cancel_match    Creator cancels before opponent joins (full refund)
-  claim_forfeit   Claim pot if opponent misses reveal window
-
-PDAs
-  match_account  ["match", match_id_le8]
-  vault          ["vault", match_id_le8]   escrow holds 2x stake
-  arena_config   ["arena_config"]          fee bps, treasury, match counter
-
-State Machine
-  WaitingForOpponent -> WaitingForCommits -> WaitingForReveals -> ReadyToSettle -> Settled
-                                                                               -> Forfeited (reveal timeout)
-```
-
----
-
-## x402 Spectator Feed
-
-```bash
-# No payment — 402 with payment instructions
-curl https://cypher-duel.vercel.app/api/x402/feed?matchId=1
-# HTTP/1.1 402 Payment Required
-# X-Payment-Scheme: x402
-# X-Payment-Amount: 1000
-# X-Payment-Asset: SOL
-# X-Payment-Recipient: 7FzTczMDCTvxuiLdBT15ryp1a55FBDVs4Xz5p989C41U
-
-# With valid payment proof — live match data
-curl -H "X-Payment: <proof>" https://cypher-duel.vercel.app/api/x402/feed?matchId=1
-# { "matchId": 1, "priceUsd": 97482.31, "playerA": "...", "playerB": "...", "timeLeft": 34, "state": 2 }
-```
+| Field | Value |
+|-------|-------|
+| Program ID | `EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN` |
+| Network | Solana Devnet |
+| Deployed slot | 461111930 |
+| Protocol fee | 250 bps (2.5%) |
+| Minimum stake | 0.01 SOL |
+| Explorer | [View on Solana Explorer](https://explorer.solana.com/address/EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN?cluster=devnet) |
 
 ---
 
@@ -162,30 +156,39 @@ git clone https://github.com/IamHarrie-Labs/cypher-duel
 cd cypher-duel
 npm install --legacy-peer-deps
 npm run dev
-
-# App:    http://localhost:5173
-# Demo:   http://localhost:5173/game?demo=true
-# Blinks: http://localhost:5173/api/actions/challenge?asset=BTC&stake=0.05
-# x402:   http://localhost:5173/api/x402/feed?matchId=0
 ```
 
-Get devnet SOL: `solana airdrop 2 <your-address> --url devnet`
+| Route | URL |
+|-------|-----|
+| App | http://localhost:5173 |
+| Free demo (no wallet) | http://localhost:5173/game?demo=true |
+| Blinks API | http://localhost:5173/api/actions/challenge?asset=SOL&stake=0.05 |
 
-Connect Phantom or Solflare → Create Match → Pick 3 Cards → Watch Live Pyth Feed → Reveal → Settle.
+**Get devnet SOL:**
+```bash
+solana airdrop 2 <your-wallet-address> --url devnet
+```
 
----
-
-## Program Info
-
-| Field | Value |
-|---|---|
-| Program ID | `EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN` |
-| Network | Solana Devnet |
-| Deployed slot | 461111930 |
-| Protocol fee | 250 bps (2.5%) |
-| Minimum stake | 0.01 SOL |
-| Upgrade authority | None (immutable) |
+Connect any Solana wallet → Create Match → Pick 3 Cards → Battle Live Prices → Reveal → Settle.
 
 ---
 
-*Built for Dev3Pack Solana Hackathon — Best App Overall + x402 Bonus Track*
+## Links
+
+| | |
+|--|--|
+| 🎮 Live App | [playcypher.vercel.app](https://playcypher.vercel.app) |
+| 📹 Demo Video | [loom.com/share/fcc23d89...](https://www.loom.com/share/fcc23d89ef7a4a84afdf056f23f7fe92) |
+| 🐦 Twitter | [@Play_Cypher](https://twitter.com/Play_Cypher) |
+| 🔗 GitHub | [IamHarrie-Labs/cypher-duel](https://github.com/IamHarrie-Labs/cypher-duel) |
+| 🔍 Program | [Solana Explorer](https://explorer.solana.com/address/EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN?cluster=devnet) |
+
+---
+
+<div align="center">
+
+*Built for Dev3Pack Solana Hackathon*
+
+**[▶ PLAY NOW](https://playcypher.vercel.app) · [Watch Demo](https://www.loom.com/share/fcc23d89ef7a4a84afdf056f23f7fe92) · [@Play_Cypher](https://twitter.com/Play_Cypher)**
+
+</div>
