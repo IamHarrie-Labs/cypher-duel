@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Swords, ExternalLink, Share2 } from 'lucide-react';
 import { CardIcon, CARD_ICON_ID } from '../CardIcons';
@@ -6,6 +6,7 @@ import { sounds } from '../../lib/sounds';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useGame } from '../../store/game-store';
 import { ASSET_NAMES, CARDS, PROGRAM_ID } from '../../lib/constants';
+import { resolveIdentity, resolveIdentitySync } from '../../lib/sns';
 import { PublicKey } from '@solana/web3.js';
 
 export default function ResultView() {
@@ -20,16 +21,23 @@ export default function ResultView() {
   const oppScore = isPlayerA ? match.scoreB : match.scoreA;
   const won  = myScore > oppScore;
 
+  // Resolved .sol identities (async; start with short-address fallback)
+  const [myIdentity,  setMyIdentity]  = useState(resolveIdentitySync(isPlayerA ? match.playerA : (match.playerB ?? '')));
+  const [oppIdentity, setOppIdentity] = useState(resolveIdentitySync(isPlayerA ? (match.playerB ?? '') : match.playerA));
+
+  React.useEffect(() => {
+    const myAddr  = isPlayerA ? match.playerA : (match.playerB ?? '');
+    const oppAddr = isPlayerA ? (match.playerB ?? '') : match.playerA;
+    if (myAddr)  resolveIdentity(myAddr).then(setMyIdentity);
+    if (oppAddr) resolveIdentity(oppAddr).then(setOppIdentity);
+  }, [match.playerA, match.playerB]);
+
   // Play win/lose sound on mount (after won is derived)
   React.useEffect(() => {
     if (won) sounds.win();
     else sounds.lose();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function shortAddr(addr: string) {
-    return addr.slice(0, 4) + '…' + addr.slice(-4);
-  }
 
   const blinksUrl = `https://cypher-duel.vercel.app/api/actions/challenge?matchId=${match.matchId}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`;
   const tweetText = encodeURIComponent(
@@ -78,12 +86,14 @@ export default function ResultView() {
             <h2 className="brutal-section-label">ROUND BREAKDOWN</h2>
             <div className="grid grid-cols-2 gap-8">
               <div className="text-center">
-                <p className="brutal-section-label text-[10px] mb-2">YOU</p>
+                <p className="brutal-section-label text-[10px] mb-1">YOU</p>
+                <p className="text-[10px] font-mono text-[#888] mb-2 truncate" title={isPlayerA ? match.playerA : (match.playerB ?? '')}>{myIdentity}</p>
                 <p className={`font-black text-5xl brutal-number ${won ? 'text-lime' : 'text-[#888]'}`}>{myScore}</p>
                 <p className="text-xs text-[#555] font-mono mt-1">pts</p>
               </div>
               <div className="text-center">
-                <p className="brutal-section-label text-[10px] mb-2">OPPONENT</p>
+                <p className="brutal-section-label text-[10px] mb-1">OPPONENT</p>
+                <p className="text-[10px] font-mono text-[#888] mb-2 truncate" title={isPlayerA ? (match.playerB ?? '') : match.playerA}>{oppIdentity}</p>
                 <p className={`font-black text-5xl brutal-number ${!won ? 'text-[#FF3B3B]' : 'text-[#888]'}`}>{oppScore}</p>
                 <p className="text-xs text-[#555] font-mono mt-1">pts</p>
               </div>

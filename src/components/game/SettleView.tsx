@@ -9,7 +9,22 @@ import { useGame } from '../../store/game-store';
 import { getProgram, getConfigPDA, getMatchPDA, getVaultPDA, fetchSettledMatch, TREASURY } from '../../lib/anchor-client';
 import { fetchLatestPrice, formatUsd, formatDelta } from '../../lib/pyth';
 import { ASSET_NAMES, CARDS } from '../../lib/constants';
+import { resolveIdentitySync } from '../../lib/sns';
 import * as anchor from '@coral-xyz/anchor';
+
+/** Fire-and-forget — posts the result to /api/match-result for leaderboard persistence */
+async function persistResult(payload: {
+  matchId: string; winner: string | null; playerA: string; playerB: string;
+  scoreA: number; scoreB: number; stakeSOL: number; asset: string;
+}) {
+  try {
+    await fetch('/api/match-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch { /* non-critical — leaderboard is best-effort */ }
+}
 
 
 export default function SettleView() {
@@ -36,59 +51,75 @@ export default function SettleView() {
   }, []);
 
   async function handleSettle() {
+    // Guard: prevent double-tap / re-entrant clicks
+    if (settling || state.txPending) return;
     dispatch({ type: 'SET_TX_PENDING', pending: true });
     setSettling(true);
 
     try {
-      // Fetch end price with a 6 s timeout — fall back to last streamed price
-      // so the button never locks up if Pyth's Hermes endpoint is slow.
+      // In demo / no-wallet mode we already have the streaming price — skip
+      // the network fetch entirely so the button responds instantly.
+      const canGoOnChain = !!program && !!publicKey && !state.demoMode;
+
       let endRaw: bigint;
-      try {
-        const priceData = await Promise.race([
-          fetchLatestPrice(match.asset),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), 6000)
-          ),
-        ]);
-        endRaw = priceData.raw;
-      } catch {
+      if (canGoOnChain) {
+        // Real on-chain path: fetch latest Pyth price (6 s timeout fallback)
+        try {
+          const priceData = await Promise.race([
+            fetchLatestPrice(match.asset),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('timeout')), 6000)
+            ),
+          ]);
+          endRaw = priceData.raw;
+        } catch {
+          endRaw = state.currentPriceRaw ?? match.startPrice ?? BigInt(0);
+        }
+      } else {
+        // Demo / offline: use last streamed price — no network wait
         endRaw = state.currentPriceRaw ?? match.startPrice ?? BigInt(0);
       }
 
-      const highRaw = state.battleHighRaw > endRaw ? state.battleHighRaw : endRaw;
-      const lowRaw = state.battleLowRaw > 0n && state.battleLowRaw < endRaw ? state.battleLowRaw : endRaw;
+      const highRaw = state.battleHighRaw > 0n && state.battleHighRaw > endRaw ? state.battleHighRaw : endRaw;
+      const lowRaw  = state.battleLowRaw  > 0n && state.battleLowRaw  < endRaw ? state.battleLowRaw  : endRaw;
 
-      const endUsd = Number(endRaw) / 1e8;
+      const endUsd  = Number(endRaw)  / 1e8;
       const highUsd = Number(highRaw) / 1e8;
-      const lowUsd = Number(lowRaw) / 1e8;
+      const lowUsd  = Number(lowRaw)  / 1e8;
 
       // Compute my score locally — mirrors on-chain score_card
       const myScore = state.myPlays.reduce((acc, play) =>
         acc + scoreCard(play.cardId, play.direction, play.snipeTarget, startPrice, endUsd, highUsd, lowUsd), 0);
 
-      const isPlayerA = publicKey?.toBase58() === match.playerA;
+      // In demo mode, treat the current user as playerA regardless of wallet
+      // (publicKey may be null when playing the free demo without a wallet).
+      const isPlayerA = state.demoMode
+        ? (publicKey ? publicKey.toBase58() === match.playerA : true)
+        : publicKey?.toBase58() === match.playerA;
 
-      if (state.demoMode) {
-        // Demo path — synthesise result, no real SOL
+      // ── Demo / no-wallet settlement ─────────────────────────────────
+      if (!canGoOnChain) {
         const scoreA = isPlayerA ? myScore : 0;
         const scoreB = isPlayerA ? 0 : myScore;
         const winner = myScore > 0
           ? (isPlayerA ? match.playerA : (match.playerB ?? match.playerA))
           : (match.playerB ?? match.playerA);
-        const demoTx = 'DEMO' + Math.random().toString(36).slice(2, 10).toUpperCase();
+        const demoTx = (state.demoMode ? 'DEMO' : 'LOCAL') + Math.random().toString(36).slice(2, 10).toUpperCase();
         setSettleTx(demoTx);
         dispatch({
           type: 'SET_MATCH',
           match: { ...match, scoreA, scoreB, winner, endPrice: endRaw, highPrice: highRaw, lowPrice: lowRaw },
         });
-        dispatch({ type: 'SET_RESULT', message: `Demo settled! Your score: ${myScore} pts` });
+        dispatch({ type: 'SET_RESULT', message: `Settled! Your score: ${myScore} pts` });
+        persistResult({
+          matchId: match.matchId.toString(), winner, playerA: match.playerA,
+          playerB: match.playerB ?? '', scoreA, scoreB,
+          stakeSOL: match.stakeSOL, asset: ASSET_NAMES[match.asset],
+        });
         return;
       }
 
-      // Real path — settle on-chain, SOL transfers automatically to winner
-      if (!program || !publicKey) {
-        throw new Error('Wallet disconnected.');
-      }
+      // ── Real on-chain path ───────────────────────────────────────────
 
       // Use player addresses from local state — they were set correctly when
       // the match was created / joined. Avoid raw byte reads here since the
@@ -138,6 +169,12 @@ export default function SettleView() {
         match: { ...match, scoreA, scoreB, winner, endPrice: endRaw, highPrice: highRaw, lowPrice: lowRaw },
       });
       dispatch({ type: 'SET_RESULT', message: `Settled on-chain! Tx: ${tx.slice(0, 8)}…` });
+      // Persist on-chain result for leaderboard (non-blocking)
+      persistResult({
+        matchId: match.matchId.toString(), winner, playerA: match.playerA,
+        playerB: match.playerB ?? '', scoreA, scoreB,
+        stakeSOL: match.stakeSOL, asset: ASSET_NAMES[match.asset],
+      });
     } catch (e: any) {
       dispatch({ type: 'SET_ERROR', error: e.message ?? 'Settlement failed — check wallet and try again.' });
     } finally {
@@ -187,7 +224,7 @@ export default function SettleView() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
           <div className="brutal-card p-6 space-y-4">
             <h2 className="brutal-section-label">ROUND SUMMARY · {ASSET_NAMES[match.asset]}/USD</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 settle-price-grid">
               {[
                 { label: 'OPEN', value: startPrice, color: '#888' },
                 { label: 'CLOSE (LIVE)', value: livePrice ?? 0, color: delta >= 0 ? '#CCFF00' : '#FF3B3B' },
@@ -280,17 +317,19 @@ export default function SettleView() {
             {settleTx ? (
               <div className="space-y-3">
                 <div className="p-4 bg-[rgba(204,255,0,0.08)] border-2 border-lime">
-                  <p className="font-bold text-lime uppercase mb-2">SETTLED ON-CHAIN</p>
+                  <p className="font-bold text-lime uppercase mb-2">SETTLED</p>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-[#888]">{settleTx}</span>
-                    <a
-                      href={`https://explorer.solana.com/tx/${settleTx}?cluster=devnet`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-lime hover:text-[#DDFF33]"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
+                    <span className="font-mono text-xs text-[#888] break-all">{settleTx}</span>
+                    {!settleTx.startsWith('DEMO') && !settleTx.startsWith('LOCAL') && (
+                      <a
+                        href={`https://explorer.solana.com/tx/${settleTx}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-lime hover:text-[#DDFF33] flex-shrink-0"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
                   </div>
                 </div>
                 <button
@@ -301,25 +340,48 @@ export default function SettleView() {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={handleSettle}
-                disabled={settling || state.txPending}
-                className="brutal-btn w-full py-4 text-sm flex items-center justify-center gap-2"
-              >
-                {state.txPending ? (
-                  <><RefreshCw className="w-4 h-4 animate-spin" /> SETTLING ON-CHAIN…</>
-                ) : (
-                  <><Zap className="w-4 h-4" /> SETTLE & CLAIM POT</>
+              <div className="space-y-3">
+                <button
+                  onClick={handleSettle}
+                  disabled={settling || state.txPending}
+                  style={{ opacity: settling || state.txPending ? 0.5 : 1 }}
+                  className="brutal-btn w-full py-4 text-sm flex items-center justify-center gap-2"
+                >
+                  {settling || state.txPending ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> SETTLING…</>
+                  ) : (
+                    <><Zap className="w-4 h-4" /> SETTLE & CLAIM POT</>
+                  )}
+                </button>
+
+                {/* Stuck-state escape hatch: if somehow txPending gets stuck */}
+                {state.txPending && !settling && (
+                  <button
+                    onClick={() => dispatch({ type: 'SET_TX_PENDING', pending: false })}
+                    className="w-full text-xs text-[#888] font-mono underline text-center"
+                  >
+                    Taking too long? Click to reset and try again
+                  </button>
                 )}
-              </button>
+              </div>
             )}
 
             {state.error && (
-              <p className="text-xs text-[#FF3B3B] font-mono">{state.error}</p>
+              <div className="p-3 border-2 border-[#FF3B3B] bg-[rgba(255,59,59,0.06)]">
+                <p className="text-sm text-[#FF3B3B] font-mono font-bold">{state.error}</p>
+                <button
+                  onClick={() => dispatch({ type: 'SET_ERROR', error: null })}
+                  className="text-xs text-[#FF3B3B] font-mono underline mt-1"
+                >
+                  Dismiss and try again
+                </button>
+              </div>
             )}
 
             <p className="text-xs text-[#555] font-mono text-center">
-              Pyth price fetched at settlement time · Scores computed on-chain · 2.5% protocol fee
+              {state.demoMode || !publicKey
+                ? 'Demo mode · Scores computed locally · No SOL transferred'
+                : 'Pyth price fetched at settlement time · Scores computed on-chain · 2.5% protocol fee'}
             </p>
           </div>
         </motion.div>

@@ -4,7 +4,7 @@ import { Users, Loader2, Wallet } from 'lucide-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useGame, GameProvider } from '../store/game-store';
 import { streamPrice, fetchLatestPrice } from '../lib/pyth';
-import { fetchMatchState } from '../lib/anchor-client';
+import { getMatchPDA } from '../lib/anchor-client';
 import { ASSET_NAMES } from '../lib/constants';
 import MatchLobby from '../components/game/MatchLobby';
 import CardHand from '../components/game/CardHand';
@@ -57,12 +57,13 @@ function WaitingForOpponent() {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
 
-  // Poll the match-sync API every 4 s to detect when Player B joins.
-  // We no longer use the raw on-chain byte check here — the field offsets in
-  // fetchMatchState depend on whether the Rust struct has a bump field, and
-  // a wrong offset makes playerB and state appear set on a fresh match,
-  // causing an immediate false advance. The sync API is authoritative: Player B
-  // always posts to it inside handleJoinMatch right after their tx confirms.
+  // Detect when Player B joins using two complementary mechanisms:
+  //   1. Solana WebSocket accountSubscribe on the match PDA — real-time, fires
+  //      within ~400 ms of the join tx confirming.
+  //   2. 4-second polling of /api/match-sync — authoritative fallback (Player B
+  //      always POSTs there after their tx, including the joinedAt timestamp).
+  // The timestamp guard (joinedAt > createdAt) prevents stale Lambda records
+  // from a prior session advancing the screen immediately.
   const matchCreatedAt = match?.createdAt ?? 0;
   useEffect(() => {
     if (!match) return;
@@ -76,22 +77,40 @@ function WaitingForOpponent() {
       dispatch({ type: 'SET_PHASE', phase: 'DRAFT' });
     }
 
-    async function poll() {
+    async function checkMatchSync() {
       if (advanced) return;
       try {
         const res = await fetch(`/api/match-sync?matchId=${matchId.toString()}`);
         if (!res.ok) return;
         const data = await res.json();
-        // Only advance if the join record was written AFTER this match was
-        // created — guards against stale Lambda records from a prior session.
         if (data?.playerB && data.joinedAt > matchCreatedAt) {
           advance(data.playerB);
         }
       } catch { /* ignore network errors */ }
     }
 
-    const interval = setInterval(poll, 4000);
-    return () => clearInterval(interval);
+    // ── WebSocket subscription on match PDA ──────────────────────────
+    // When the match account data changes (Player B joins and updates it),
+    // we immediately re-check the sync API for the authoritative playerB.
+    let wsSubId: number | null = null;
+    try {
+      const [matchPDA] = getMatchPDA(matchId);
+      wsSubId = connection.onAccountChange(
+        matchPDA,
+        () => { checkMatchSync(); },
+        'confirmed',
+      );
+    } catch { /* WS unavailable — polling will cover it */ }
+
+    // ── Polling fallback every 4 s ────────────────────────────────────
+    const interval = setInterval(checkMatchSync, 4000);
+
+    return () => {
+      clearInterval(interval);
+      if (wsSubId !== null) {
+        connection.removeAccountChangeListener(wsSubId).catch(() => {});
+      }
+    };
   }, [match?.matchId]);
 
   if (!match) {

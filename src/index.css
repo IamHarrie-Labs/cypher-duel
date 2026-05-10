@@ -127,6 +127,13 @@
     box-shadow: 0 0 0 #111;
   }
 
+  .brutal-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: 2px 2px 0 #888 !important;
+  }
+
   .brutal-btn-red {
     background: #FF3B3B;
     color: #fff;
@@ -537,14 +544,31 @@
   grid-template-columns: 44px 1fr 80px 80px 72px 72px 80px;
 }
 @media (max-width: 640px) {
+  /* Podium: stay 3-col but scroll horizontally instead of stacking */
   .lb-podium {
-    grid-template-columns: 1fr;
+    display: flex;
     overflow-x: auto;
+    gap: 12px;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .lb-podium > * {
+    flex: 0 0 180px;
+    min-width: 160px;
+    /* Reset the negative top margin that creates the podium height effect */
+    margin-top: 0 !important;
   }
   .lb-table-header,
   .lb-table-row {
+    /* rank | player | win% | pts — tier/record/streak hidden via .hidden.sm:block */
     grid-template-columns: 36px 1fr 58px 64px;
   }
+}
+
+/* Refresh spin animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 /* ── Mobile responsive overrides ── */
@@ -636,5 +660,21 @@
 
   .battle-top-bar {
     grid-template-columns: 1fr !important;
+  }
+
+  /* CardHand: reduce horizontal padding and font on very small screens */
+  .card-hand-grid {
+    gap: 16px !important;
+  }
+
+  /* Phase breadcrumb — hide 'WAITING' label text on very small screens */
+  .phase-breadcrumb span {
+    font-size: 0.5rem !important;
+    letter-spacing: 0 !important;
+  }
+
+  /* Settle/Result cards — make price grid 2-col */
+  .settle-price-grid {
+    grid-template-columns: 1fr 1fr !important;
   }
 }
