@@ -57,26 +57,41 @@ function WaitingForOpponent() {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
 
-  // Poll the on-chain match account every 5 s to detect when Player B joins
+  // Poll for opponent every 4 s — checks both the chain and the sync API
+  // so it works regardless of whether the match is on-chain or demo-mode.
   useEffect(() => {
     if (!match) return;
     const matchId = match.matchId;
+    let advanced = false;
 
-    async function poll() {
-      const result = await fetchMatchState(connection, matchId);
-      if (!result) return;
-      if (result.playerB) {
-        // Opponent joined — update local match state and advance to DRAFT
-        dispatch({
-          type: 'SET_MATCH',
-          match: { ...match!, playerB: result.playerB, state: result.state },
-        });
-        dispatch({ type: 'SET_PHASE', phase: 'DRAFT' });
-      }
+    function advance(playerB: string) {
+      if (advanced) return;
+      advanced = true;
+      dispatch({ type: 'SET_MATCH', match: { ...match!, playerB, state: 1 } });
+      dispatch({ type: 'SET_PHASE', phase: 'DRAFT' });
     }
 
-    poll(); // immediate first check
-    const interval = setInterval(poll, 5000);
+    async function poll() {
+      if (advanced) return;
+
+      // 1. Check on-chain account (works when arenaConfig is initialized)
+      try {
+        const chainResult = await fetchMatchState(connection, matchId);
+        if (chainResult?.playerB) { advance(chainResult.playerB); return; }
+      } catch { /* ignore */ }
+
+      // 2. Fallback: check the match-sync API (works in demo mode)
+      try {
+        const res = await fetch(`/api/match-sync?matchId=${matchId.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.playerB) { advance(data.playerB); return; }
+        }
+      } catch { /* ignore */ }
+    }
+
+    poll();
+    const interval = setInterval(poll, 4000);
     return () => clearInterval(interval);
   }, [match?.matchId]);
 

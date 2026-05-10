@@ -206,12 +206,14 @@ export default function MatchLobby() {
       }
     }
 
+    const playerBAddr = publicKey.toBase58();
+
     dispatch({
       type: 'SET_MATCH',
       match: {
         matchId,
         playerA,
-        playerB: publicKey.toBase58(),
+        playerB: playerBAddr,
         asset,
         stakeSOL,
         state: 1,
@@ -226,6 +228,20 @@ export default function MatchLobby() {
       },
     });
     if (!onChainOk) dispatch({ type: 'SET_DEMO_MODE', on: true });
+
+    // Notify Player A's waiting screen via the match-sync API so they advance
+    // even when the match is in demo mode (no on-chain account to poll).
+    fetch('/api/match-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        matchId: matchId.toString(),
+        playerB: playerBAddr,
+        asset: ASSET_NAMES[asset],
+        stakeSOL,
+      }),
+    }).catch(() => {/* non-critical */});
+
     dispatch({ type: 'SET_PHASE', phase: 'DRAFT' });
     dispatch({ type: 'SET_TX_PENDING', pending: false });
     dispatch({ type: 'REMOVE_OPEN_MATCH', matchId });
