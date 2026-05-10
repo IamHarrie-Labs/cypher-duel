@@ -136,6 +136,20 @@ The Anchor program re-derives this hash on reveal and panics on mismatch. TypeSc
 
 ---
 
+## Live On-Chain Proof
+
+These transactions were recorded during a real 2-wallet test match on Devnet. Every instruction was signed by a real wallet, verified by the Anchor program, and is permanently on-chain.
+
+| Instruction | Wallet | Slot | Explorer |
+|-------------|--------|------|---------|
+| `initialize_config` | Player B | 461330393 | [View →](https://explorer.solana.com/tx/5udmFfbxcEH4X9Nq7ipzVsxuWE9KEV4QtLMisew8G4Tk9ZL2WjtgAgMEg3QLnixbDbApbqJEucpksTmrQCUdrgsq?cluster=devnet) |
+| `create_match` | Player A | 461331758 | [View →](https://explorer.solana.com/tx/2SRJkxqmjSZijSiBc89i2L2pDUe2ACZDhif2UKLq15XWpipjfoTA5XY41pH72gDCqyHDXBxxguHMtigiSFKjLoHP?cluster=devnet) |
+| `join_match` | Player B | 461333404 | [View →](https://explorer.solana.com/tx/5qPyHsnvfEmt1oqVD8xEyPg3pHBhcZxg7BC1yr4RWLfiXXmGhd5E8ZHJf99Cwd4F2TUgMjUAQ6DhM4QXz1FjDi7m?cluster=devnet) |
+
+Both wallets staked real SOL into the vault PDA. The full create → join flow completed on-chain across two separate wallets, 10 minutes apart.
+
+---
+
 ## Program Details
 
 | Field | Value |
