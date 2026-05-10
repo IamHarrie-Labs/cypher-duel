@@ -139,10 +139,14 @@ const IDL: anchor.Idl = {
       type: {
         kind: 'struct',
         fields: [
+          // bump is stored as first field — 1 byte shifts all subsequent offsets
+          { name: 'bump', type: 'u8' },
           { name: 'authority', type: 'pubkey' },
           { name: 'treasury', type: 'pubkey' },
           { name: 'fee_bps', type: 'u16' },
           { name: 'total_matches', type: 'u64' },
+          { name: 'min_stake', type: 'u64' },
+          { name: '_reserved', type: { array: ['u8', 3] } },
         ],
       },
     },
@@ -194,34 +198,61 @@ export function getProgram(connection: Connection, wallet: AnchorWallet): anchor
   }
 }
 
+// Read 8 bytes as u64 little-endian from a buffer at a given offset.
+function readU64LE(data: Buffer | Uint8Array, offset: number): bigint {
+  let val = BigInt(0);
+  for (let i = 0; i < 8; i++) val += BigInt(data[offset + i]) << BigInt(8 * i);
+  return val;
+}
+
 // Ensure arenaConfig PDA exists, auto-initialize if missing.
 // Returns the current total_matches count (= next valid matchId).
+//
+// Uses raw account bytes instead of IDL-based decoding to avoid a byte-offset
+// bug: the manually-added `bump` field in the IDL types may not exist in the
+// actual on-chain struct, shifting every subsequent field by 1 byte and causing
+// `total_matches` to decode as a garbage value → persistent error 6014.
+//
+// We try total_matches at two candidate offsets:
+//   disc(8)+bump(1)+authority(32)+treasury(32)+fee_bps(2) = 75  (bump present)
+//   disc(8)+authority(32)+treasury(32)+fee_bps(2)         = 74  (no bump)
+// The correct offset produces a small counter; the wrong one produces a huge
+// number because the bytes are misaligned. We pick the smaller value.
 export async function ensureArenaConfig(program: anchor.Program): Promise<bigint> {
   const [configPDA] = getConfigPDA();
-  const client = (program.account as any)?.arenaConfig;
-  if (!client) throw new Error('Program account client unavailable');
+  const connection = program.provider.connection;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
-      const config = await client.fetch(configPDA);
-      const total = config.total_matches ?? config.totalMatches ?? BigInt(0);
-      return BigInt(total.toString());
-    } catch (fetchErr: any) {
-      const msg: string = fetchErr?.message ?? '';
-      if (msg.includes('Account does not exist') || msg.includes('not found') || msg.includes('could not find')) {
+      const info = await connection.getAccountInfo(configPDA, 'confirmed');
+
+      if (!info) {
         try {
           await program.methods.initializeConfig(250, TREASURY).rpc();
-          await new Promise(r => setTimeout(r, 1500)); // wait for confirmation
+          await new Promise(r => setTimeout(r, 2000));
         } catch (initErr: any) {
           if (!initErr?.message?.includes('already in use')) throw initErr;
-          // Another wallet initialized it concurrently — retry the fetch
         }
-      } else {
-        throw fetchErr;
+        continue;
       }
+
+      const data = info.data;
+      const MAX = BigInt('0xffffffffffffffff');
+      const at74 = data.length >= 82 ? readU64LE(data, 74) : MAX;
+      const at75 = data.length >= 83 ? readU64LE(data, 75) : MAX;
+      // The correct offset gives a plausible small counter; pick the minimum.
+      return at74 <= at75 ? at74 : at75;
+
+    } catch (e: any) {
+      const msg: string = e?.message ?? '';
+      if (msg.includes('429') || msg.includes('Too many requests')) {
+        await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
+        continue;
+      }
+      throw e;
     }
   }
-  throw new Error('Unable to initialize arenaConfig after 3 attempts');
+  throw new Error('Unable to read arenaConfig after 4 attempts');
 }
 
 export function getConfigPDA(): [PublicKey, number] {
