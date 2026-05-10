@@ -438,10 +438,11 @@
   animation: ticker-l 28s linear infinite;
 }
 
-/* ── Wallet adapter overrides ── */
-
-/* All wallet adapter buttons share the same base style */
-.wallet-adapter-button {
+/* ── Wallet adapter — minimal overrides ──
+   Only the trigger button is restyled to match the brutalist theme.
+   The modal, dropdown, and all internal elements use the default wallet-adapter
+   styles to guarantee functionality (selection list, click handlers, z-index). */
+.wallet-adapter-button-trigger {
   background: #111 !important;
   color: #F0EDDA !important;
   font-family: 'Space Grotesk', sans-serif !important;
@@ -453,103 +454,19 @@
   padding: 0.45rem 1.1rem !important;
   border: 2px solid #111 !important;
   box-shadow: 3px 3px 0px #111 !important;
-  transition: transform 0.1s, box-shadow 0.1s !important;
   height: auto !important;
 }
 
-.wallet-adapter-button:hover {
-  transform: translate(-1px, -1px) !important;
-  box-shadow: 4px 4px 0px #111 !important;
+.wallet-adapter-button-trigger:hover:not([disabled]) {
   background: #333 !important;
 }
 
-.wallet-adapter-button:active {
-  transform: translate(2px, 2px) !important;
-  box-shadow: 0px 0px 0px #0A0A0A !important;
-}
-
-/* Dropdown list (shown when connected and button is clicked) */
-.wallet-adapter-dropdown {
-  position: relative !important;
-}
-
-.wallet-adapter-dropdown-list {
-  position: absolute !important;
-  z-index: 9999 !important;
-  background: #111 !important;
-  border: 2px solid #CCFF00 !important;
-  box-shadow: 4px 4px 0px #CCFF00 !important;
-  border-radius: 0 !important;
-  padding: 4px 0 !important;
-  min-width: 180px !important;
-  top: calc(100% + 6px) !important;
-  right: 0 !important;
-}
-
-.wallet-adapter-dropdown-list-item {
-  color: #F0EDDA !important;
-  font-family: 'Space Grotesk', sans-serif !important;
-  font-size: 0.78rem !important;
-  font-weight: 600 !important;
-  padding: 10px 16px !important;
-  border-radius: 0 !important;
-  cursor: pointer !important;
-}
-
-.wallet-adapter-dropdown-list-item:hover {
-  background: rgba(204,255,0,0.12) !important;
-  color: #CCFF00 !important;
-}
-
-/* Modal */
+/* Ensure modal/dropdown sit above the fixed navbar (z:50) */
 .wallet-adapter-modal {
-  z-index: 10000 !important;
+  z-index: 1000 !important;
 }
-
-.wallet-adapter-modal-overlay {
-  z-index: 9999 !important;
-}
-
-.wallet-adapter-modal-container {
-  z-index: 10000 !important;
-}
-
-.wallet-adapter-modal-wrapper {
-  background-color: #111111 !important;
-  border: 2px solid #CCFF00 !important;
-  border-radius: 0 !important;
-  box-shadow: 6px 6px 0px #CCFF00 !important;
-  font-family: 'Space Grotesk', sans-serif !important;
-}
-
-.wallet-adapter-modal-title {
-  color: #F5F5F0 !important;
-  font-family: 'Space Grotesk', sans-serif !important;
-  font-weight: 800 !important;
-  text-transform: uppercase !important;
-  letter-spacing: -0.02em !important;
-}
-
-.wallet-adapter-modal-list .wallet-adapter-button {
-  color: #F5F5F0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  border-radius: 0 !important;
-  font-family: 'Space Grotesk', sans-serif !important;
-}
-
-.wallet-adapter-modal-list .wallet-adapter-button:hover {
-  background-color: rgba(204,255,0,0.08) !important;
-  border: 1px solid #CCFF00 !important;
-  box-shadow: none !important;
-  transform: none !important;
-}
-
-.wallet-adapter-modal-button-close {
-  background-color: #1a1a1a !important;
-  border-radius: 0 !important;
-  border: 1px solid rgba(245,245,240,0.2) !important;
+.wallet-adapter-dropdown-list {
+  z-index: 1000 !important;
 }
 
 /* ── Custom scrollbar ── */
