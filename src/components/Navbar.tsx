@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Menu, X } from 'lucide-react';
+import { LogoMark } from './LogoMark';
 
 interface NavbarProps {
   gameMode?: boolean;
@@ -28,30 +29,12 @@ const Navbar: React.FC<NavbarProps> = ({ gameMode = false, demoMode = false }) =
       <div className="container mx-auto flex items-center justify-between h-14 px-4">
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 group">
-          <div style={{
-            width: 34, height: 34, background: '#C8FF00',
-            border: '2px solid #111', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            boxShadow: '2px 2px 0 #111',
-          }}>
-            {/* Crossed swords icon */}
-            <svg viewBox="0 0 16 16" width="18" height="18" fill="#111">
-              <path d="M2.5 2L14 13.5M4 2L2 4M12 14l2-2M2 14l12-12M13.5 3L12 4.5M3.5 13L2 14.5"
-                stroke="#111" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-              <path d="M1.5 1.5l3 3-1 1L0 2.5zm13 13l-3-3 1-1 3.5 3.5z" fill="#111" />
-            </svg>
-          </div>
-          <span style={{
-            fontFamily: "'Caveat', cursive",
-            fontWeight: 800, fontSize: '1.35rem', color: '#111', letterSpacing: '-0.01em',
-          }}>
-            CYPHER_
-          </span>
+        <Link to="/" className="flex items-center gap-2 group" style={{ textDecoration: 'none' }}>
+          <LogoMark height={38} />
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '0.65rem', fontWeight: 600, color: '#111',
-            border: '1.5px solid #111', padding: '1px 6px', marginLeft: 2,
+            border: '1.5px solid #111', padding: '1px 6px',
             letterSpacing: '0.08em',
           }}>
             DEVNET
@@ -60,8 +43,8 @@ const Navbar: React.FC<NavbarProps> = ({ gameMode = false, demoMode = false }) =
             <span style={{
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: '0.65rem', fontWeight: 600,
-              background: 'rgba(255,45,120,0.1)', color: '#FF2D78',
-              border: '1.5px solid #FF2D78', padding: '1px 6px', marginLeft: 2,
+              background: 'rgba(217,26,110,0.1)', color: '#D91A6E',
+              border: '1.5px solid #D91A6E', padding: '1px 6px',
               letterSpacing: '0.08em',
             }}>
               DEMO

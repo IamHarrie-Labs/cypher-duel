@@ -6,8 +6,8 @@ const CARDS = [
   { id: 'pulse',    name: 'PULSE',    risk: 'L', pts: 10,  fill: '#8FC600', desc: 'BTC moves >0.3% either way' },
   { id: 'tilt',    name: 'TILT',     risk: 'L', pts: 15,  fill: '#8FC600', desc: 'Closes higher / lower than open' },
   { id: 'surge',   name: 'SURGE',    risk: 'M', pts: 30,  fill: '#111',    desc: 'BTC moves >1% your way' },
-  { id: 'snipe',   name: 'SNIPE',    risk: 'H', pts: 75,  fill: '#FF2D78', desc: 'Hits exact band ±$50' },
-  { id: 'whiplash',name: 'WHIPLASH', risk: 'H', pts: 60,  fill: '#FF2D78', desc: 'Reverses direction ≥2 times' },
+  { id: 'snipe',   name: 'SNIPE',    risk: 'H', pts: 75,  fill: '#D91A6E', desc: 'Hits exact band ±$50' },
+  { id: 'whiplash',name: 'WHIPLASH', risk: 'H', pts: 60,  fill: '#D91A6E', desc: 'Reverses direction ≥2 times' },
   { id: 'calm',    name: 'CALM',     risk: 'H', pts: 50,  fill: '#111',    desc: 'Stays within ±0.2%' },
 ];
 
@@ -75,7 +75,7 @@ function FanCard({
           </p>
           <p style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '0.7rem', color: '#FF2D78', fontWeight: 700,
+            fontSize: '0.7rem', color: '#D91A6E', fontWeight: 700,
             marginTop: 3,
           }}>
             +{pts} pts
@@ -133,10 +133,8 @@ export default function CardShowcase() {
             viewport={{ once: true }}
             style={{
               position: 'relative',
-              height: 520,
-              display: 'flex',
-              alignItems: 'flex-end',
-              justifyContent: 'center',
+              height: 320,
+              marginBottom: 40,
             }}
           >
             {CARDS.map((c, i) => (
@@ -203,7 +201,7 @@ export default function CardShowcase() {
                   <span style={{
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: '0.6rem', fontWeight: 700,
-                    color: c.fill === '#111' || c.fill === '#FF2D78' ? 'white' : '#111',
+                    color: c.fill === '#111' || c.fill === '#D91A6E' ? 'white' : '#111',
                   }}>
                     {c.risk}
                   </span>

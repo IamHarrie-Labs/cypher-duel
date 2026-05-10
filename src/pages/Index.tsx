@@ -3,7 +3,6 @@ import Navbar from '../components/Navbar';
 import HeroSection from '../components/HeroSection';
 import HowItWorks from '../components/HowItWorks';
 import CardShowcase from '../components/CardShowcase';
-import DocsSection from '../components/DocsSection';
 import Footer from '../components/Footer';
 
 const Index: React.FC = () => {
@@ -13,7 +12,6 @@ const Index: React.FC = () => {
       <HeroSection />
       <HowItWorks />
       <CardShowcase />
-      <DocsSection />
       <Footer />
     </div>
   );

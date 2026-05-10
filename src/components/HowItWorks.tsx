@@ -15,17 +15,17 @@ const STEPS = [
   {
     phase: '03', time: '5s', title: 'LOCK',
     desc: 'Commit-reveal. No copying.',
-    color: '#FF2D78',
+    color: '#D91A6E',
   },
   {
     phase: '04', time: '60s', title: 'BATTLE',
     desc: 'Pyth ticks. Cards resolve live.',
-    color: '#FF2D78',
+    color: '#D91A6E',
   },
   {
     phase: '05', time: '5s', title: 'SETTLE',
     desc: 'Winner takes pot + cNFT trophy.',
-    color: '#FF2D78',
+    color: '#D91A6E',
   },
 ];
 
@@ -120,7 +120,7 @@ export default function HowItWorks() {
                 fontFamily: "'Caveat', cursive",
                 fontSize: '1.15rem', fontWeight: 700, color: step.color,
                 marginBottom: 10,
-                textShadow: step.color === '#FF2D78' ? 'none' : 'none',
+                textShadow: step.color === '#D91A6E' ? 'none' : 'none',
               }}>
                 {step.time}
               </p>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const LINKS_COL1 = [
   { label: 'how-it-works', href: '#how-it-works' },
@@ -20,6 +21,7 @@ const MONO: React.CSSProperties = {
 };
 
 export default function Footer() {
+  const navigate = useNavigate();
   return (
     <footer
       className="landing-bg"
@@ -29,15 +31,11 @@ export default function Footer() {
     >
       {/* Main footer grid */}
       <div
-        className="container mx-auto"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
-          borderBottom: '2px solid #111',
-        }}
+        className="container mx-auto footer-main-grid"
+        style={{ borderBottom: '2px solid #111' }}
       >
         {/* ── COL 1: whoami ── */}
-        <div style={{ padding: '48px 40px', borderRight: '2px solid #111' }}>
+        <div className="footer-col footer-col-border" style={{ padding: '48px 40px' }}>
           <p style={{ ...MONO, fontSize: '0.78rem', color: '#888', marginBottom: 16 }}>
             $ whoami
           </p>
@@ -57,7 +55,7 @@ export default function Footer() {
         </div>
 
         {/* ── COL 2: links ── */}
-        <div style={{ padding: '48px 40px', borderRight: '2px solid #111' }}>
+        <div className="footer-col footer-col-border" style={{ padding: '48px 40px' }}>
           <p style={{ ...MONO, fontSize: '0.78rem', color: '#888', marginBottom: 20 }}>
             $ ls -la /links
           </p>
@@ -102,14 +100,14 @@ export default function Footer() {
         </div>
 
         {/* ── COL 3: CTA + version ── */}
-        <div style={{
+        <div className="footer-col" style={{
           padding: '48px 40px',
           display: 'flex', flexDirection: 'column',
           justifyContent: 'space-between',
         }}>
           <div>
             <button
-              onClick={() => window.location.pathname !== '/game' && (window.location.href = '/game')}
+              onClick={() => navigate('/game')}
               className="sketch-btn flex items-center gap-2 px-5 py-3 text-xs w-full justify-center"
             >
               <svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor">

@@ -113,7 +113,7 @@ export default function LeaderboardPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 }}
+            className="lb-podium"
           >
             {DATA.slice(0, 3).map((e, i) => {
               const order = [1, 0, 2]; // 2nd, 1st, 3rd visual order
@@ -161,9 +161,7 @@ export default function LeaderboardPage() {
             style={{ border: '2.5px solid #111', background: 'white', boxShadow: '5px 5px 0 #111' }}
           >
             {/* Table header */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '44px 1fr 80px 80px 72px 72px 80px',
+            <div className="lb-table-header" style={{
               padding: '12px 20px',
               background: '#111',
               ...MONO, fontSize: '0.62rem', color: '#888',
@@ -184,9 +182,8 @@ export default function LeaderboardPage() {
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.25 + i * 0.04 }}
+                className="lb-table-row"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '44px 1fr 80px 80px 72px 72px 80px',
                   padding: '14px 20px',
                   borderBottom: i < DATA.length - 1 ? '1.5px solid #eee' : 'none',
                   alignItems: 'center',

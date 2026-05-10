@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import TricksterA from './TricksterA';
 import TricksterB from './TricksterB';
+import { fetchLatestPrice, formatUsd } from '../lib/pyth';
 
 const HERO_IMAGE = '/hero-vs.jpg';
 
@@ -12,7 +13,7 @@ function HeroIllustration() {
 
   if (!imgFailed) {
     return (
-      <div style={{ position: 'relative', width: '100%', maxWidth: 620 }}>
+      <div style={{ width: '100%', maxWidth: 620 }}>
         <img
           src={HERO_IMAGE}
           alt="Two traders face off in Cypher arena"
@@ -21,20 +22,11 @@ function HeroIllustration() {
             width: '100%',
             display: 'block',
             objectFit: 'contain',
-            // invert: black bg → white (blends into cream), white outlines → dark ink art
-            filter: 'invert(1)',
+            mixBlendMode: 'multiply',
             userSelect: 'none',
             pointerEvents: 'none',
           }}
         />
-        {/* Vignette fades edges into cream */}
-        <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none',
-          background: `
-            linear-gradient(to right,  #F0EDDA 0%, transparent 22%, transparent 78%, #F0EDDA 100%),
-            linear-gradient(to bottom, #F0EDDA 0%, transparent 8%,  transparent 72%, #F0EDDA 100%)
-          `,
-        }} />
       </div>
     );
   }
@@ -63,29 +55,74 @@ function HeroIllustration() {
 }
 
 /* ── Live price ticker ─────────────────────────────────────── */
-const TICKER_ITEMS = [
-  { label: 'BTC/USD', val: '$103,842', delta: '+2.34%' },
-  { label: 'ETH/USD', val: '$2,461',   delta: '-0.87%' },
-  { label: 'SOL/USD', val: '$172.63',  delta: '+5.12%' },
-  { label: 'MATCH POT', val: '0.098 SOL', delta: 'LIVE' },
-  { label: 'PLAYERS',   val: '1v1',    delta: 'DEVNET' },
-  { label: 'ORACLE',    val: 'PYTH',   delta: 'VERIFIED' },
+const STATIC_ITEMS = [
+  { label: 'MATCH POT', val: '0.098 SOL', delta: 'LIVE',     isStatic: true },
+  { label: 'PLAYERS',   val: '1v1',       delta: 'DEVNET',   isStatic: true },
+  { label: 'ORACLE',    val: 'PYTH',      delta: 'VERIFIED', isStatic: true },
 ];
 
+interface TickerItem { label: string; val: string; delta: string; isStatic?: boolean; positive?: boolean }
+
 function Ticker() {
-  const items = [...TICKER_ITEMS, ...TICKER_ITEMS];
+  const [prices, setPrices] = useState<TickerItem[]>([
+    { label: 'BTC/USD', val: '...', delta: '—' },
+    { label: 'ETH/USD', val: '...', delta: '—' },
+    { label: 'SOL/USD', val: '...', delta: '—' },
+  ]);
+  const prevRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    async function fetchAll() {
+      try {
+        const [btc, eth, sol] = await Promise.all([
+          fetchLatestPrice(0),
+          fetchLatestPrice(1),
+          fetchLatestPrice(2),
+        ]);
+        const live = [btc, eth, sol];
+        const symbols = ['BTC', 'ETH', 'SOL'];
+        const labels = ['BTC/USD', 'ETH/USD', 'SOL/USD'];
+
+        setPrices(live.map((p, i) => {
+          const prev = prevRef.current[i];
+          const delta = prev ? ((p.price - prev) / prev) : 0;
+          const sign = delta >= 0 ? '+' : '';
+          prevRef.current[i] = p.price;
+          return {
+            label: labels[i],
+            val: formatUsd(p.price, symbols[i]),
+            delta: prev ? `${sign}${(delta * 100).toFixed(2)}%` : '—',
+            positive: delta >= 0,
+          };
+        }));
+      } catch {
+        // keep previous values on error
+      }
+    }
+
+    fetchAll();
+    const id = setInterval(fetchAll, 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const items: TickerItem[] = [...prices, ...STATIC_ITEMS];
+  const doubled = [...items, ...items];
+
   return (
     <div style={{
       borderTop: '2px solid #111', borderBottom: '2px solid #111',
       background: '#111', padding: '10px 0', overflow: 'hidden',
     }}>
       <div className="flex items-center gap-10 whitespace-nowrap animate-ticker">
-        {items.map((t, i) => (
+        {doubled.map((t, i) => (
           <div key={i} className="flex items-center gap-2 text-xs flex-shrink-0"
                style={{ fontFamily: "'JetBrains Mono', monospace" }}>
             <span style={{ color: '#888', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t.label}</span>
             <span style={{ color: '#eee' }}>{t.val}</span>
-            <span style={{ color: '#C8FF00', fontWeight: 700 }}>{t.delta}</span>
+            <span style={{
+              color: t.isStatic ? '#C8FF00' : (t.positive === false ? '#FF5555' : '#C8FF00'),
+              fontWeight: 700,
+            }}>{t.delta}</span>
             <span style={{ color: '#333', margin: '0 4px' }}>◆</span>
           </div>
         ))}

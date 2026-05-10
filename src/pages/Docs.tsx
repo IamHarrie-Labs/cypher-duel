@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Lock, Zap, Scale } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { CardIcon } from '../components/CardIcons';
@@ -39,13 +40,13 @@ const CARD_DEFS = [
     example: 'You predict UP. BTC must close above $101,000 (from $100k open) for SURGE to score.',
   },
   {
-    id: 'snipe',    name: 'SNIPE',    pts: 75,  risk: 'HIGH', fill: '#FF2D78',
+    id: 'snipe',    name: 'SNIPE',    pts: 75,  risk: 'HIGH', fill: '#D91A6E',
     condition: 'Price touches your exact target price ±$50 at any point during the match.',
     strategy: 'Highest single-card reward. Watch support/resistance levels. High risk — miss by $51 and you get nothing.',
     example: 'You set target $101,500. If BTC touches anywhere from $101,450–$101,550 — SNIPE scores 75 pts.',
   },
   {
-    id: 'whiplash', name: 'WHIPLASH', pts: 60,  risk: 'HIGH', fill: '#FF2D78',
+    id: 'whiplash', name: 'WHIPLASH', pts: 60,  risk: 'HIGH', fill: '#D91A6E',
     condition: 'Price goes both above AND below the opening price at any point in the 60 seconds.',
     strategy: 'Pure volatility play. Best in choppy, sideways markets. No direction needed — just chaos.',
     example: 'BTC opens $100k. Spikes to $100,200 then dips to $99,800 in the same match — WHIPLASH scores.',
@@ -78,15 +79,23 @@ function SectionOverview() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, border: '2.5px solid #111', background: 'white' }}>
         {[
-          { icon: '🔒', label: 'Sealed Bid', desc: 'SHA-256 hash commits your picks before battle starts. No peeking.' },
-          { icon: '⚡', label: 'Live Oracle', desc: 'Pyth streams real BTC/ETH/SOL prices every 2 seconds during the match.' },
-          { icon: '⚖️', label: 'On-Chain Settlement', desc: 'Rust scoring function runs on-chain. Winner gets the pot minus 2.5% fee.' },
+          { Icon: Lock,  fill: '#111',    label: 'Sealed Bid',          desc: 'SHA-256 hash commits your picks before battle starts. No peeking.' },
+          { Icon: Zap,   fill: '#C8FF00', label: 'Live Oracle',          desc: 'Pyth streams real BTC/ETH/SOL prices every 2 seconds during the match.' },
+          { Icon: Scale, fill: '#D91A6E', label: 'On-Chain Settlement',  desc: 'Rust scoring function runs on-chain. Winner gets the pot minus 2.5% fee.' },
         ].map((item, i) => (
           <div key={i} style={{
             padding: '24px 20px',
             borderRight: i < 2 ? '2px solid #111' : undefined,
           }}>
-            <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>{item.icon}</div>
+            <div style={{
+              width: 40, height: 40, borderRadius: '50%',
+              background: item.fill,
+              border: item.fill === '#111' ? '2px solid #333' : '2px solid rgba(0,0,0,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              marginBottom: 12,
+            }}>
+              <item.Icon size={18} color={item.fill === '#C8FF00' ? '#111' : 'white'} strokeWidth={2.5} />
+            </div>
             <p style={{ ...MONO, fontSize: '0.75rem', fontWeight: 700, color: '#111', marginBottom: 6, textTransform: 'uppercase' }}>
               {item.label}
             </p>
@@ -233,7 +242,7 @@ function SectionCards() {
                 </div>
                 <p style={{
                   ...MONO, fontSize: '0.72rem', fontWeight: 700,
-                  color: card.fill === '#FF2D78' ? '#FF2D78' : '#8FC600',
+                  color: card.fill === '#D91A6E' ? '#D91A6E' : '#8FC600',
                   marginTop: 2,
                 }}>
                   +{card.pts} pts
@@ -319,8 +328,8 @@ function SectionScoring() {
           { card: 'TILT',     pts: 15, pct: '8%',  color: '#8FC600' },
           { card: 'SURGE',    pts: 30, pct: '16%', color: '#555' },
           { card: 'CALM',     pts: 50, pct: '26%', color: '#555' },
-          { card: 'WHIPLASH', pts: 60, pct: '32%', color: '#FF2D78' },
-          { card: 'SNIPE',    pts: 75, pct: '39%', color: '#FF2D78' },
+          { card: 'WHIPLASH', pts: 60, pct: '32%', color: '#D91A6E' },
+          { card: 'SNIPE',    pts: 75, pct: '39%', color: '#D91A6E' },
         ].map(row => (
           <div key={row.card} style={{
             display: 'flex', alignItems: 'center', gap: 16, padding: '12px 20px',
@@ -337,8 +346,8 @@ function SectionScoring() {
         ))}
       </div>
 
-      <div style={{ background: 'rgba(255,45,120,0.06)', border: '2px solid #FF2D78', padding: '16px 20px' }}>
-        <p style={{ ...MONO, fontSize: '0.72rem', color: '#FF2D78', fontWeight: 700, marginBottom: 4 }}>TIEBREAKER</p>
+      <div style={{ background: 'rgba(217,26,110,0.06)', border: '2px solid #D91A6E', padding: '16px 20px' }}>
+        <p style={{ ...MONO, fontSize: '0.72rem', color: '#D91A6E', fontWeight: 700, marginBottom: 4 }}>TIEBREAKER</p>
         <p style={{ ...GROTESK, fontSize: '0.85rem', color: '#444', lineHeight: 1.6 }}>
           On equal scores, Player A (the match creator) wins. This is deterministic and known before the match starts.
         </p>
@@ -379,12 +388,12 @@ function SectionCommitReveal() {
             },
             {
               step: '4. REVEAL',
-              color: '#FF2D78',
+              color: '#D91A6E',
               desc: 'Call reveal_plays(match_id, cards, directions, snipe_target, salt). Program re-derives the hash from plaintext — if it doesn\'t match your commit, the transaction panics and is rejected.',
             },
             {
               step: '5. SETTLE',
-              color: '#FF2D78',
+              color: '#D91A6E',
               desc: 'With both reveals verified, settle_match scores the hands, transfers SOL to the winner, takes 2.5% fee to treasury.',
             },
           ].map((row, i) => (

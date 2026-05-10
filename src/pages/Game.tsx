@@ -30,7 +30,7 @@ function WaitingForOpponent() {
   }, []);
 
   const blinksUrl = match
-    ? `https://cypher.sol/api/actions/challenge?matchId=${match.matchId}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`
+    ? `${import.meta.env.VITE_APP_URL ?? ''}/api/actions/challenge?matchId=${match.matchId}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`
     : '';
 
   return (
@@ -194,7 +194,7 @@ function GameInner() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
                 <WalletMultiButton />
                 <button
-                  onClick={() => window.location.href = '/game?demo=true'}
+                  onClick={() => { window.location.search = '?demo=true'; }}
                   style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: '0.8rem', color: '#555', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
                 >
                   Or try the free demo match →
