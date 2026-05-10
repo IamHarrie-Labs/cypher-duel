@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useAnchorWallet } from '@solana/wallet-adapter-react';
 import { motion } from 'framer-motion';
@@ -26,9 +26,31 @@ export default function MatchLobby() {
   const [configTotalMatches, setConfigTotalMatches] = useState<bigint>(BigInt(0));
   const [copied, setCopied] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [autoJoining, setAutoJoining] = useState(false);
 
   const program = anchorWallet ? getProgram(connection, anchorWallet) : null;
   const [configPDA] = getConfigPDA();
+  const joinHandled = useRef(false);
+
+  // Auto-join when redirected from a Blink: /game?join=<matchId>&asset=SOL&stake=0.05&playerA=<addr>
+  useEffect(() => {
+    if (joinHandled.current || !publicKey) return;
+    const params = new URLSearchParams(window.location.search);
+    const joinId = params.get('join');
+    if (!joinId) return;
+
+    joinHandled.current = true;
+    const assetName = (params.get('asset') ?? 'BTC').toUpperCase();
+    const stakeSOL  = parseFloat(params.get('stake') ?? '0.05') || 0.05;
+    const playerA   = params.get('playerA') ?? '';
+    const ASSET_MAP: Record<string, AssetId> = { BTC: 0, ETH: 1, SOL: 2 };
+    const asset     = (ASSET_MAP[assetName] ?? 0) as AssetId;
+
+    window.history.replaceState({}, '', '/game');
+    setAutoJoining(true);
+    handleJoinMatch(BigInt(joinId), asset, stakeSOL, playerA)
+      .finally(() => setAutoJoining(false));
+  }, [publicKey]); // re-runs when wallet connects
 
   useEffect(() => {
     if (!program) return;
@@ -232,6 +254,22 @@ export default function MatchLobby() {
       },
     });
     dispatch({ type: 'SET_PHASE', phase: 'DRAFT' });
+  }
+
+  if (autoJoining) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center px-4">
+        <div className="brutal-card p-10 text-center space-y-4 max-w-sm w-full">
+          <div className="w-14 h-14 bg-lime border-2 border-[#111] mx-auto flex items-center justify-center animate-pulse">
+            <Swords className="w-7 h-7 text-[#111]" />
+          </div>
+          <h2 style={{ fontFamily: "'Caveat', cursive", fontSize: '1.8rem', fontWeight: 800 }}>
+            Joining Match…
+          </h2>
+          <p className="text-sm font-mono text-[#666]">Fetching live price and entering the arena</p>
+        </div>
+      </div>
+    );
   }
 
   return (

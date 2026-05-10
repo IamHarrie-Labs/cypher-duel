@@ -54,7 +54,7 @@ export default async function handler(req: any, res: any) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  const { matchId, asset = 'BTC', stake = '0.05' } = req.query as Record<string, string>;
+  const { matchId, asset = 'BTC', stake = '0.05', playerA = '' } = req.query as Record<string, string>;
 
   // Absolute origin needed for Blinks — wallets won't resolve relative hrefs
   const proto  = req.headers['x-forwarded-proto'] ?? 'https';
@@ -70,7 +70,7 @@ export default async function handler(req: any, res: any) {
     const isWallet = req.headers['x-action-version'] || req.headers['x-blockchain-ids'];
     if (!isWallet && accept.includes('text/html')) {
       const dest = matchId
-        ? `${origin}/game?join=${matchId}&asset=${asset}&stake=${stake}`
+        ? `${origin}/game?join=${matchId}&asset=${asset}&stake=${stake}&playerA=${encodeURIComponent(playerA)}`
         : `${origin}/game`;
       res.setHeader('Location', dest);
       return res.status(302).end();
