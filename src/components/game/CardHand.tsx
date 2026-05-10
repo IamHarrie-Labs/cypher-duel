@@ -103,19 +103,18 @@ export default function CardHand() {
     dispatch({ type: 'SET_PLAYS', plays, salt });
     dispatch({ type: 'SET_COMMIT', hash: Array.from(hash) });
 
-    // Demo mode: skip on-chain tx
+    // Demo mode — no wallet needed, skip on-chain
     if (state.demoMode) {
       sounds.commit();
       setCommitted(true);
-      toast({ title: 'Plays sealed!', description: 'Your picks are locked. Battle begins now.' });
+      toast({ title: 'Plays sealed!', description: 'Demo — your picks are locked. Battle begins now.' });
       setTimeout(() => dispatch({ type: 'SET_PHASE', phase: 'BATTLE' }), 1000);
       return;
     }
 
     if (!program || !publicKey) {
       sounds.error();
-      dispatch({ type: 'SET_ERROR', error: 'Connect wallet to commit on-chain' });
-      toast({ title: 'Wallet required', description: 'Connect your Phantom or Solflare wallet to play on-chain.', variant: 'destructive' });
+      toast({ title: 'Wallet required', description: 'Connect your wallet to seal plays on-chain.', variant: 'destructive' });
       return;
     }
 
@@ -125,13 +124,20 @@ export default function CardHand() {
       await program.methods
         .commitPlays(new anchor.BN(match.matchId.toString()), Array.from(hash))
         .rpc();
+      sounds.commit();
       setCommitted(true);
-      dispatch({ type: 'SET_TX_PENDING', pending: false });
-      setTimeout(() => dispatch({ type: 'SET_PHASE', phase: 'WAITING_REVEAL' }), 1200);
+      toast({ title: 'Plays sealed on-chain!', description: 'Hash committed — battle starts now.' });
+      setTimeout(() => dispatch({ type: 'SET_PHASE', phase: 'BATTLE' }), 1000);
     } catch (e: any) {
-      dispatch({ type: 'SET_ERROR', error: e.message ?? 'Commit failed' });
+      sounds.error();
+      toast({
+        title: 'Commit failed',
+        description: e?.message?.slice(0, 120) ?? 'Transaction rejected — check wallet and try again.',
+        variant: 'destructive',
+      });
     } finally {
       setCommitting(false);
+      dispatch({ type: 'SET_TX_PENDING', pending: false });
     }
   }
 

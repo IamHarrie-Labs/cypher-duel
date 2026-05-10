@@ -57,51 +57,57 @@ export default function SettleView() {
 
       const isPlayerA = publicKey?.toBase58() === match.playerA;
 
-      // Always attempt on-chain settle if wallet + playerB exist — vault may hold real SOL
-      if (program && publicKey && match.playerB) {
-        const playerA = new PublicKey(match.playerA);
-        const playerB = new PublicKey(match.playerB);
-
-        const tx = await program.methods
-          .settleMatch(
-            new anchor.BN(match.matchId.toString()),
-            new anchor.BN(endRaw.toString()),
-            new anchor.BN(highRaw.toString()),
-            new anchor.BN(lowRaw.toString()),
-          )
-          .accounts({ playerA, playerB, treasury: TREASURY })
-          .rpc();
-
-        setSettleTx(tx);
-
-        // Read actual scores written by the program
-        let scoreA = isPlayerA ? myScore : 0;
-        let scoreB = isPlayerA ? 0 : myScore;
-        let winner: string | null = myScore > 0 ? (isPlayerA ? match.playerA : match.playerB) : null;
-        try {
-          const settled = await fetchSettledMatch(connection, match.matchId);
-          if (settled) { scoreA = settled.scoreA; scoreB = settled.scoreB; winner = settled.winner; }
-        } catch { /* use locally-computed fallback */ }
-
+      if (state.demoMode) {
+        // Demo path — synthesise result, no real SOL
+        const scoreA = isPlayerA ? myScore : 0;
+        const scoreB = isPlayerA ? 0 : myScore;
+        const winner = myScore > 0
+          ? (isPlayerA ? match.playerA : (match.playerB ?? match.playerA))
+          : (match.playerB ?? match.playerA);
+        const demoTx = 'DEMO' + Math.random().toString(36).slice(2, 10).toUpperCase();
+        setSettleTx(demoTx);
         dispatch({
           type: 'SET_MATCH',
           match: { ...match, scoreA, scoreB, winner, endPrice: endRaw, highPrice: highRaw, lowPrice: lowRaw },
         });
-        dispatch({ type: 'SET_RESULT', message: `Settled on-chain! Tx: ${tx.slice(0, 8)}…` });
+        dispatch({ type: 'SET_RESULT', message: `Demo settled! Your score: ${myScore} pts` });
         return;
       }
 
-      // Demo fallback — no vault, no real SOL, synthesize result
-      const scoreA = isPlayerA ? myScore : 0;
-      const scoreB = isPlayerA ? 0 : myScore;
-      const winner = myScore > 0 ? (isPlayerA ? match.playerA : (match.playerB ?? match.playerA)) : (match.playerB ?? match.playerA);
-      const demoTx = 'DEMO' + Math.random().toString(36).slice(2, 10).toUpperCase();
-      setSettleTx(demoTx);
+      // Real path — settle on-chain, SOL transfers automatically to winner
+      if (!program || !publicKey || !match.playerB) {
+        throw new Error('Wallet disconnected or match data incomplete.');
+      }
+
+      const playerA = new PublicKey(match.playerA);
+      const playerB = new PublicKey(match.playerB);
+
+      const tx = await program.methods
+        .settleMatch(
+          new anchor.BN(match.matchId.toString()),
+          new anchor.BN(endRaw.toString()),
+          new anchor.BN(highRaw.toString()),
+          new anchor.BN(lowRaw.toString()),
+        )
+        .accounts({ playerA, playerB, treasury: TREASURY })
+        .rpc();
+
+      setSettleTx(tx);
+
+      // Read actual scores written on-chain by the program
+      let scoreA = isPlayerA ? myScore : 0;
+      let scoreB = isPlayerA ? 0 : myScore;
+      let winner: string | null = null;
+      try {
+        const settled = await fetchSettledMatch(connection, match.matchId);
+        if (settled) { scoreA = settled.scoreA; scoreB = settled.scoreB; winner = settled.winner; }
+      } catch { /* keep locally-computed fallback */ }
+
       dispatch({
         type: 'SET_MATCH',
         match: { ...match, scoreA, scoreB, winner, endPrice: endRaw, highPrice: highRaw, lowPrice: lowRaw },
       });
-      dispatch({ type: 'SET_RESULT', message: `Demo settled! Your score: ${myScore} pts` });
+      dispatch({ type: 'SET_RESULT', message: `Settled on-chain! Tx: ${tx.slice(0, 8)}…` });
     } catch (e: any) {
       dispatch({ type: 'SET_ERROR', error: e.message ?? 'Settlement failed — check wallet and try again.' });
     } finally {

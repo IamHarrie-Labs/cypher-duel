@@ -117,17 +117,22 @@ export default function BattleView() {
   }
 
   async function handleReveal() {
-    if (state.demoMode || !program || !state.salt) {
+    // Demo mode — no wallet needed
+    if (state.demoMode) {
       sounds.commit();
       setRevealed(true);
-      toast({ title: 'Plays revealed!', description: 'Settling match…' });
+      toast({ title: 'Plays revealed!', description: 'Demo — settling match…' });
       setTimeout(() => dispatch({ type: 'SET_PHASE', phase: 'SETTLE' }), 800);
+      return;
+    }
+
+    if (!program || !state.salt) {
+      toast({ title: 'Cannot reveal', description: 'Wallet disconnected or session data missing.', variant: 'destructive' });
       return;
     }
 
     dispatch({ type: 'SET_TX_PENDING', pending: true });
     setRevealing(true);
-    let onChainOk = false;
     try {
       const snipeTarget = myPlays.find(p => p.cardId === 3)?.snipeTarget ?? BigInt(0);
       await program.methods
@@ -139,22 +144,20 @@ export default function BattleView() {
           Array.from(state.salt),
         )
         .rpc();
-      onChainOk = true;
+      sounds.commit();
+      setRevealed(true);
+      toast({ title: 'Plays revealed on-chain!', description: 'Verified — proceeding to settle…' });
+      setTimeout(() => dispatch({ type: 'SET_PHASE', phase: 'SETTLE' }), 800);
     } catch (e: any) {
-      console.warn('[BattleView] reveal_plays failed, falling back to demo:', e?.message ?? e);
+      toast({
+        title: 'Reveal failed',
+        description: e?.message?.slice(0, 120) ?? 'Transaction rejected — try again.',
+        variant: 'destructive',
+      });
     } finally {
       setRevealing(false);
       dispatch({ type: 'SET_TX_PENDING', pending: false });
     }
-
-    if (!onChainOk) dispatch({ type: 'SET_DEMO_MODE', on: true });
-    sounds.commit();
-    setRevealed(true);
-    toast({
-      title: 'Plays revealed!',
-      description: onChainOk ? 'Verified on-chain — proceeding to settle…' : 'Revealed locally — proceeding to settle…',
-    });
-    setTimeout(() => dispatch({ type: 'SET_PHASE', phase: 'SETTLE' }), 800);
   }
 
   const currentPrice = state.currentPrice;

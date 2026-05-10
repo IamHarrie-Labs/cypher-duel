@@ -149,23 +149,22 @@ export default function MatchLobby() {
       }
     }
 
-    let onChainOk = false;
-    if (program) {
-      try {
-        const stake = solToLamports(stakeSOL);
-        await program.methods
-          .createMatch(selectedAsset, new anchor.BN(stake.toString()), new anchor.BN(matchId.toString()))
-          .rpc();
-        onChainOk = true;
-        setConfigTotalMatches(matchId + BigInt(1));
-      } catch (e: any) {
-        console.warn('[Lobby] on-chain createMatch failed:', e?.message ?? e);
-        toast({
-          title: 'On-chain create failed',
-          description: e?.message?.slice(0, 120) ?? 'Transaction rejected — running in demo mode. No real SOL will be wagered.',
-          variant: 'destructive',
-        });
-      }
+    try {
+      const stake = solToLamports(stakeSOL);
+      await program.methods
+        .createMatch(selectedAsset, new anchor.BN(stake.toString()), new anchor.BN(matchId.toString()))
+        .rpc();
+      setConfigTotalMatches(matchId + BigInt(1));
+    } catch (e: any) {
+      console.warn('[Lobby] on-chain createMatch failed:', e?.message ?? e);
+      toast({
+        title: 'Match creation failed',
+        description: e?.message?.slice(0, 120) ?? 'Transaction rejected — check your wallet balance and try again.',
+        variant: 'destructive',
+      });
+      dispatch({ type: 'SET_TX_PENDING', pending: false });
+      setCreating(false);
+      return;
     }
 
     // Fetch live start price
@@ -194,7 +193,6 @@ export default function MatchLobby() {
         createdAt: Date.now(),
       },
     });
-    if (!onChainOk) dispatch({ type: 'SET_DEMO_MODE', on: true });
     dispatch({ type: 'SET_PHASE', phase: 'WAITING' });
     dispatch({ type: 'SET_TX_PENDING', pending: false });
     setCreating(false);
@@ -212,21 +210,19 @@ export default function MatchLobby() {
       priceRaw = BigInt(0);
     }
 
-    let onChainOk = false;
-    if (program) {
-      try {
-        await program.methods
-          .joinMatch(new anchor.BN(matchId.toString()), new anchor.BN(priceRaw.toString()))
-          .rpc();
-        onChainOk = true;
-      } catch (e: any) {
-        console.warn('[Lobby] on-chain joinMatch failed:', e?.message ?? e);
-        toast({
-          title: 'On-chain join failed',
-          description: e?.message?.slice(0, 120) ?? 'Transaction rejected — running in demo mode. No real SOL will be wagered.',
-          variant: 'destructive',
-        });
-      }
+    try {
+      await program.methods
+        .joinMatch(new anchor.BN(matchId.toString()), new anchor.BN(priceRaw.toString()))
+        .rpc();
+    } catch (e: any) {
+      console.warn('[Lobby] on-chain joinMatch failed:', e?.message ?? e);
+      toast({
+        title: 'Join failed',
+        description: e?.message?.slice(0, 120) ?? 'Transaction rejected — check your wallet balance and try again.',
+        variant: 'destructive',
+      });
+      dispatch({ type: 'SET_TX_PENDING', pending: false });
+      return;
     }
 
     const playerBAddr = publicKey.toBase58();
@@ -250,7 +246,6 @@ export default function MatchLobby() {
         createdAt: Date.now(),
       },
     });
-    if (!onChainOk) dispatch({ type: 'SET_DEMO_MODE', on: true });
 
     // Notify Player A's waiting screen via the match-sync API so they advance
     // even when the match is in demo mode (no on-chain account to poll).
