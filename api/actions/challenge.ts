@@ -81,7 +81,7 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({
       type: 'action',
-      icon: `${origin}/og.png`,
+      icon: `${origin}/og.svg`,
       title: `Cypher Duel — ${asset}/USD`,
       description: `1v1 sealed-bid price-prediction combat on Solana devnet. Pick 3 cards, commit, battle 60 s of live Pyth prices, settle on-chain. Stake: ${stake} SOL each.`,
       label: 'Accept Challenge',

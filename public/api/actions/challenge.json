@@ -1,25 +1,25 @@
 {
   "title": "Cypher — 1v1 Prediction Duel",
-  "icon": "https://cypher.sol/og.svg",
+  "icon": "https://playcypher.vercel.app/og.svg",
   "description": "Accept this duel. Pick 3 cards. Battle live Pyth prices on Solana. Winner takes the pot. Sealed-bid. On-chain. 60 seconds.",
   "label": "Accept Duel",
   "links": {
     "actions": [
       {
         "label": "Accept — 0.01 SOL",
-        "href": "/api/actions/challenge?stake=0.01"
+        "href": "https://playcypher.vercel.app/api/actions/challenge?stake=0.01"
       },
       {
         "label": "Accept — 0.05 SOL",
-        "href": "/api/actions/challenge?stake=0.05"
+        "href": "https://playcypher.vercel.app/api/actions/challenge?stake=0.05"
       },
       {
         "label": "Accept — 0.1 SOL",
-        "href": "/api/actions/challenge?stake=0.1"
+        "href": "https://playcypher.vercel.app/api/actions/challenge?stake=0.1"
       },
       {
         "label": "Custom stake",
-        "href": "/api/actions/challenge?stake={stake}",
+        "href": "https://playcypher.vercel.app/api/actions/challenge?stake={stake}",
         "parameters": [
           {
             "name": "stake",
