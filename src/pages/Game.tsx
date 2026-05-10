@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Users, Loader2, Wallet } from 'lucide-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -13,66 +12,105 @@ import SettleView from '../components/game/SettleView';
 import ResultView from '../components/game/ResultView';
 import Navbar from '../components/Navbar';
 
+// Top-level error boundary — keeps the screen from going blank if any phase component throws.
+class PhaseErrorBoundary extends React.Component<
+  { children: React.ReactNode; onReset: () => void },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; onReset: () => void }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[Game] phase render crashed:', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen pt-20 flex items-center justify-center px-4">
+          <div className="max-w-md w-full brutal-card p-8 text-center space-y-4">
+            <h2 style={{ fontFamily: "'Caveat', cursive", fontSize: '1.8rem', fontWeight: 800, color: '#FF3B3B' }}>
+              Something broke
+            </h2>
+            <p className="text-sm text-[#444] font-mono break-words">{this.state.error.message}</p>
+            <button
+              onClick={() => { this.setState({ error: null }); this.props.onReset(); }}
+              className="brutal-btn px-6 py-2 text-xs"
+            >
+              BACK TO LOBBY
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function WaitingForOpponent() {
   const { state, dispatch } = useGame();
-  const match = state.match!;
+  const match = state.match;
   const { publicKey } = useWallet();
 
-  function shortAddr(addr: string) { return addr.slice(0, 4) + '…' + addr.slice(-4); }
-
-  // Poll until opponent joins
+  // Poll until opponent joins (placeholder — real impl polls the match account)
   useEffect(() => {
-    const interval = setInterval(() => {
-      // In a full implementation this polls the match account
-      // For the demo, the creator clicks "Check for opponent"
-    }, 5000);
+    const interval = setInterval(() => {}, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const blinksUrl = match
-    ? `${import.meta.env.VITE_APP_URL ?? ''}/api/actions/challenge?matchId=${match.matchId}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`
-    : '';
+  if (!match) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center px-4">
+        <div className="max-w-md w-full brutal-card p-8 text-center space-y-4">
+          <p className="text-sm font-mono text-[#666]">No active match. Returning to lobby…</p>
+          <button onClick={() => dispatch({ type: 'RESET' })} className="brutal-btn px-6 py-2 text-xs">
+            BACK TO LOBBY
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const blinksUrl = `${import.meta.env.VITE_APP_URL ?? ''}/api/actions/challenge?matchId=${match.matchId.toString()}&stake=${match.stakeSOL}&asset=${ASSET_NAMES[match.asset]}`;
 
   return (
     <div className="min-h-screen pt-20 flex items-center justify-center px-4">
       <div className="max-w-lg w-full space-y-6">
-        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}>
+        <div>
           <p className="brutal-section-label mb-1">MATCH #{match.matchId.toString()} · {ASSET_NAMES[match.asset]}/USD</p>
           <h1 style={{ fontFamily: "'Caveat', cursive", fontSize: '2.4rem', fontWeight: 800, color: '#111' }}>
             Waiting for Opponent
           </h1>
-        </motion.div>
+        </div>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-          <div className="brutal-card p-8 text-center space-y-4">
-            <div className="relative w-20 h-20 mx-auto">
-              <div className="absolute inset-0 border-2 border-[#C8FF00] animate-ping opacity-30" />
-              <div className="absolute inset-0 border-2 border-[#111] flex items-center justify-center bg-[#C8FF00]">
-                <Users className="w-8 h-8 text-[#111]" />
-              </div>
+        <div className="brutal-card p-8 text-center space-y-4">
+          <div className="relative w-20 h-20 mx-auto">
+            <div className="absolute inset-0 border-2 border-[#C8FF00] animate-ping opacity-30" />
+            <div className="absolute inset-0 border-2 border-[#111] flex items-center justify-center bg-[#C8FF00]">
+              <Users className="w-8 h-8 text-[#111]" />
             </div>
-            <p style={{ fontFamily: "'Caveat', cursive", fontSize: '1.4rem', fontWeight: 800, color: '#111' }}>
-              Seeking Challenger…
-            </p>
-            <p className="text-sm text-[#555] font-mono">
-              Stake: <span className="font-bold text-[#111]">{match.stakeSOL} SOL</span> · Asset: <span className="font-bold text-[#111]">{ASSET_NAMES[match.asset]}/USD</span>
-            </p>
           </div>
-        </motion.div>
+          <p style={{ fontFamily: "'Caveat', cursive", fontSize: '1.4rem', fontWeight: 800, color: '#111' }}>
+            Seeking Challenger…
+          </p>
+          <p className="text-sm text-[#555] font-mono">
+            Stake: <span className="font-bold text-[#111]">{match.stakeSOL} SOL</span> · Asset: <span className="font-bold text-[#111]">{ASSET_NAMES[match.asset]}/USD</span>
+          </p>
+        </div>
 
-        {/* Share link */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
-          <div className="brutal-card p-5 space-y-3">
-            <p className="brutal-section-label">SHARE YOUR CHALLENGE BLINK</p>
-            <div className="flex gap-2">
-              <input readOnly value={blinksUrl} className="brutal-input flex-1 text-xs truncate" />
-              <button onClick={() => { navigator.clipboard.writeText(blinksUrl); }} className="brutal-btn px-4 py-2 text-xs">
-                COPY
-              </button>
-            </div>
-            <p className="text-xs text-[#666] font-mono">Paste on X to get a Blink card. Anyone can accept with one click.</p>
+        <div className="brutal-card p-5 space-y-3">
+          <p className="brutal-section-label">SHARE YOUR CHALLENGE BLINK</p>
+          <div className="flex gap-2">
+            <input readOnly value={blinksUrl} className="brutal-input flex-1 text-xs truncate" />
+            <button onClick={() => { navigator.clipboard.writeText(blinksUrl); }} className="brutal-btn px-4 py-2 text-xs">
+              COPY
+            </button>
           </div>
-        </motion.div>
+          <p className="text-xs text-[#666] font-mono">Paste on X to get a Blink card. Anyone can accept with one click.</p>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <button onClick={() => dispatch({ type: 'SET_PHASE', phase: 'DRAFT' })} className="brutal-btn py-3 text-xs">
@@ -89,7 +127,20 @@ function WaitingForOpponent() {
 
 function WaitingForReveal() {
   const { state, dispatch } = useGame();
-  const match = state.match!;
+  const match = state.match;
+
+  if (!match) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center px-4">
+        <div className="max-w-md w-full brutal-card p-8 text-center space-y-4">
+          <p className="text-sm font-mono text-[#666]">No active match. Returning to lobby…</p>
+          <button onClick={() => dispatch({ type: 'RESET' })} className="brutal-btn px-6 py-2 text-xs">
+            BACK TO LOBBY
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-20 flex items-center justify-center px-4">
@@ -203,20 +254,20 @@ function GameInner() {
         </div>
       )}
 
-      {/* Game phases — plain conditional rendering, zero animation library at this boundary.
-          Phase-internal components have their own animations; we no longer wrap them.
-          This guarantees content is visible the instant phase or wallet state changes. */}
+      {/* Game phases — wrapped in error boundary so a render crash never produces a blank screen */}
       {!showWalletGate && (
-        <div key={phase}>
-          {phase === 'LOBBY' && <MatchLobby />}
-          {phase === 'WAITING' && <WaitingForOpponent />}
-          {phase === 'DRAFT' && <CardHand />}
-          {phase === 'COMMIT' && <CardHand />}
-          {phase === 'WAITING_REVEAL' && <WaitingForReveal />}
-          {phase === 'BATTLE' && <BattleView />}
-          {phase === 'SETTLE' && <SettleView />}
-          {phase === 'RESULT' && <ResultView />}
-        </div>
+        <PhaseErrorBoundary onReset={() => dispatch({ type: 'RESET' })}>
+          <div key={phase}>
+            {phase === 'LOBBY' && <MatchLobby />}
+            {phase === 'WAITING' && <WaitingForOpponent />}
+            {phase === 'DRAFT' && <CardHand />}
+            {phase === 'COMMIT' && <CardHand />}
+            {phase === 'WAITING_REVEAL' && <WaitingForReveal />}
+            {phase === 'BATTLE' && <BattleView />}
+            {phase === 'SETTLE' && <SettleView />}
+            {phase === 'RESULT' && <ResultView />}
+          </div>
+        </PhaseErrorBoundary>
       )}
 
 
