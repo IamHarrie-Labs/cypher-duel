@@ -173,7 +173,7 @@ function GameInner() {
     <div className="relative min-h-screen landing-bg">
       <Navbar gameMode demoMode={state.demoMode} />
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="wait" initial={false}>
         {phase === 'LOBBY' && !publicKey && !isDemoMode && !isDemo ? (
           /* Wallet gate — gets its own key so AnimatePresence can transition it out cleanly */
           <motion.div
