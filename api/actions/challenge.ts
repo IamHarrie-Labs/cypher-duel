@@ -64,8 +64,17 @@ export default async function handler(req: any, res: any) {
     ? `${origin}/api/actions/challenge?matchId=${matchId}&asset=${asset}`
     : `${origin}/api/actions/challenge?asset=${asset}`;
 
-  // ── GET: return Blink metadata card (no crypto needed) ────────────────────
+  // ── GET: browsers get redirected to the game; wallets get the JSON card ──
   if (req.method === 'GET') {
+    const accept = (req.headers['accept'] ?? '') as string;
+    const isWallet = req.headers['x-action-version'] || req.headers['x-blockchain-ids'];
+    if (!isWallet && accept.includes('text/html')) {
+      const dest = matchId
+        ? `${origin}/game?join=${matchId}&asset=${asset}&stake=${stake}`
+        : `${origin}/game`;
+      res.setHeader('Location', dest);
+      return res.status(302).end();
+    }
     // For a specific match, challenger must match the exact stake.
     // Build deduplicated action buttons: primary stake + alternatives only if different.
     const ALL_STAKES = ['0.01', '0.05', '0.1', '0.5'];
