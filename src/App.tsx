@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
 import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import NotFound from './pages/NotFound';
@@ -15,10 +16,14 @@ import '@solana/wallet-adapter-react-ui/styles.css';
 const RPC_ENDPOINT = 'https://api.devnet.solana.com';
 
 const App = () => {
-  // Wallet Standard (v0.15+) auto-detects any installed wallet (Phantom, Backpack, OKX, etc.)
-  // Solflare is listed explicitly for its mobile deeplink SDK which predates the Standard.
+  // Explicit adapters cover legacy injection APIs (older Phantom/Solflare).
+  // wallet-adapter-react v0.15+ additionally auto-detects any Wallet Standard
+  // wallet (Backpack, OKX, Glow, etc.) on top of these, so all installed wallets appear.
   const wallets = useMemo(
-    () => [new SolflareWalletAdapter()],
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter(),
+    ],
     [],
   );
 
