@@ -74,10 +74,12 @@ function WaitingForOpponent() {
     async function poll() {
       if (advanced) return;
 
-      // 1. Check on-chain account (works when arenaConfig is initialized)
+      // 1. Check on-chain account (works when arenaConfig is initialized).
+      // Require state > 0 to confirm the join tx has landed — guards against
+      // stale or offset-misaligned playerB bytes triggering a false advance.
       try {
         const chainResult = await fetchMatchState(connection, matchId);
-        if (chainResult?.playerB) { advance(chainResult.playerB); return; }
+        if (chainResult?.playerB && chainResult.state > 0) { advance(chainResult.playerB); return; }
       } catch { /* ignore */ }
 
       // 2. Fallback: check the match-sync API (works in demo mode)
@@ -90,9 +92,11 @@ function WaitingForOpponent() {
       } catch { /* ignore */ }
     }
 
-    poll();
+    // Delay the first poll by 3 s so the waiting screen is always visible
+    // for a moment before any transition, then continue every 4 s.
+    const firstPoll = setTimeout(poll, 3000);
     const interval = setInterval(poll, 4000);
-    return () => clearInterval(interval);
+    return () => { clearTimeout(firstPoll); clearInterval(interval); };
   }, [match?.matchId]);
 
   if (!match) {
