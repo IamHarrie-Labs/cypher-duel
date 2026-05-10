@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { Users, Loader2, Wallet } from 'lucide-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -203,26 +203,20 @@ function GameInner() {
         </div>
       )}
 
-      {/* Game phases — AnimatePresence only handles phase-to-phase transitions */}
+      {/* Game phases — plain conditional rendering, zero animation library at this boundary.
+          Phase-internal components have their own animations; we no longer wrap them.
+          This guarantees content is visible the instant phase or wallet state changes. */}
       {!showWalletGate && (
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={phase}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.25 }}
-          >
-            {phase === 'LOBBY' && <MatchLobby />}
-            {phase === 'WAITING' && <WaitingForOpponent />}
-            {phase === 'DRAFT' && <CardHand />}
-            {phase === 'COMMIT' && <CardHand />}
-            {phase === 'WAITING_REVEAL' && <WaitingForReveal />}
-            {phase === 'BATTLE' && <BattleView />}
-            {phase === 'SETTLE' && <SettleView />}
-            {phase === 'RESULT' && <ResultView />}
-          </motion.div>
-        </AnimatePresence>
+        <div key={phase}>
+          {phase === 'LOBBY' && <MatchLobby />}
+          {phase === 'WAITING' && <WaitingForOpponent />}
+          {phase === 'DRAFT' && <CardHand />}
+          {phase === 'COMMIT' && <CardHand />}
+          {phase === 'WAITING_REVEAL' && <WaitingForReveal />}
+          {phase === 'BATTLE' && <BattleView />}
+          {phase === 'SETTLE' && <SettleView />}
+          {phase === 'RESULT' && <ResultView />}
+        </div>
       )}
 
 
