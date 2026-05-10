@@ -6,13 +6,11 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useAnchorWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { useGame } from '../../store/game-store';
-import { getProgram, fetchSettledMatch } from '../../lib/anchor-client';
+import { getProgram, getConfigPDA, getMatchPDA, getVaultPDA, fetchSettledMatch, TREASURY } from '../../lib/anchor-client';
 import { fetchLatestPrice, formatUsd, formatDelta } from '../../lib/pyth';
 import { ASSET_NAMES, CARDS } from '../../lib/constants';
 import * as anchor from '@coral-xyz/anchor';
 
-// Devnet treasury address (the deployer's wallet)
-const TREASURY = new PublicKey('7FzTczMDCTvxuiLdBT15ryp1a55FBDVs4Xz5p989C41U');
 
 export default function SettleView() {
   const { state, dispatch } = useGame();
@@ -75,12 +73,30 @@ export default function SettleView() {
       }
 
       // Real path — settle on-chain, SOL transfers automatically to winner
-      if (!program || !publicKey || !match.playerB) {
-        throw new Error('Wallet disconnected or match data incomplete.');
+      if (!program || !publicKey) {
+        throw new Error('Wallet disconnected.');
       }
 
-      const playerA = new PublicKey(match.playerA);
-      const playerB = new PublicKey(match.playerB);
+      // Read the authoritative player addresses from chain — local state can be stale
+      let playerAAddr = match.playerA;
+      let playerBAddr = match.playerB ?? '';
+      try {
+        const [matchPDA] = getMatchPDA(match.matchId);
+        const info = await connection.getAccountInfo(matchPDA, 'confirmed');
+        if (info?.data && info.data.length >= 72) {
+          const pA = new PublicKey(info.data.slice(8, 40)).toBase58();
+          const pB = new PublicKey(info.data.slice(40, 72)).toBase58();
+          const DEFAULT = '11111111111111111111111111111111';
+          if (pA !== DEFAULT) playerAAddr = pA;
+          if (pB !== DEFAULT) playerBAddr = pB;
+        }
+      } catch { /* use local state as fallback */ }
+
+      if (!playerBAddr) throw new Error('Opponent address unknown — match may not be fully on-chain.');
+
+      const [cfgPDA]   = getConfigPDA();
+      const [matchPDA] = getMatchPDA(match.matchId);
+      const [vaultPDA] = getVaultPDA(match.matchId);
 
       const tx = await program.methods
         .settleMatch(
@@ -89,7 +105,16 @@ export default function SettleView() {
           new anchor.BN(highRaw.toString()),
           new anchor.BN(lowRaw.toString()),
         )
-        .accounts({ playerA, playerB, treasury: TREASURY })
+        .accounts({
+          config: cfgPDA,
+          match_account: matchPDA,
+          vault: vaultPDA,
+          caller: publicKey,
+          player_a: new PublicKey(playerAAddr),
+          player_b: new PublicKey(playerBAddr),
+          treasury: TREASURY,
+          system_program: anchor.web3.SystemProgram.programId,
+        })
         .rpc();
 
       setSettleTx(tx);

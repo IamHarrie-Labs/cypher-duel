@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Swords, Plus, Users, Zap, Trophy, RefreshCw, Copy, Check } from 'lucide-react';
 import { CardIcon, CARD_ICON_ID } from '../CardIcons';
 import { useGame } from '../../store/game-store';
-import { getProgram, getConfigPDA, solToLamports, lamportsToSol } from '../../lib/anchor-client';
+import { getProgram, getConfigPDA, getMatchPDA, getVaultPDA, solToLamports, lamportsToSol, ensureArenaConfig, TREASURY } from '../../lib/anchor-client';
 import { fetchLatestPrice } from '../../lib/pyth';
 import { ASSET_NAMES, CARDS, MIN_STAKE_LAMPORTS } from '../../lib/constants';
 import type { AssetId } from '../../lib/constants';
@@ -132,40 +132,51 @@ export default function MatchLobby() {
     dispatch({ type: 'SET_TX_PENDING', pending: true });
     setCreating(true);
 
-    // Always re-fetch total_matches from chain so matchId is never stale.
-    // Stale state caused silent failures when a previous match already occupied ID 0.
-    let matchId = configTotalMatches;
-    if (program) {
-      try {
-        const accountClient = (program.account as any)?.arenaConfig;
-        if (accountClient) {
-          const freshConfig = await accountClient.fetch(configPDA);
-          const freshTotal = freshConfig.total_matches ?? freshConfig.totalMatches ?? BigInt(0);
-          matchId = BigInt(freshTotal.toString());
-          setConfigTotalMatches(matchId);
-        }
-      } catch {
-        // arenaConfig missing — initialize_config will run via loadConfig; use local state
-      }
-    }
-
+    // Ensure arenaConfig exists and get the live matchId in one call
+    let matchId: bigint;
     try {
-      const stake = solToLamports(stakeSOL);
-      await program.methods
-        .createMatch(selectedAsset, new anchor.BN(stake.toString()), new anchor.BN(matchId.toString()))
-        .rpc();
-      setConfigTotalMatches(matchId + BigInt(1));
+      matchId = await ensureArenaConfig(program!);
+      setConfigTotalMatches(matchId);
     } catch (e: any) {
-      console.warn('[Lobby] on-chain createMatch failed:', e?.message ?? e);
-      toast({
-        title: 'Match creation failed',
-        description: e?.message?.slice(0, 120) ?? 'Transaction rejected — check your wallet balance and try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Setup failed', description: e?.message?.slice(0, 120) ?? 'Could not reach the Solana program.', variant: 'destructive' });
       dispatch({ type: 'SET_TX_PENDING', pending: false });
       setCreating(false);
       return;
     }
+
+    // Attempt create_match, retry once with matchId+1 if ID is already occupied
+    const stake = solToLamports(stakeSOL);
+    let usedMatchId = matchId;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const [cfgPDA]   = getConfigPDA();
+        const [matchPDA] = getMatchPDA(usedMatchId);
+        const [vaultPDA] = getVaultPDA(usedMatchId);
+        await program!.methods
+          .createMatch(selectedAsset, new anchor.BN(stake.toString()), new anchor.BN(usedMatchId.toString()))
+          .accounts({
+            config: cfgPDA,
+            match_account: matchPDA,
+            vault: vaultPDA,
+            player: publicKey,
+            system_program: anchor.web3.SystemProgram.programId,
+          })
+          .rpc();
+        setConfigTotalMatches(usedMatchId + BigInt(1));
+        break; // success
+      } catch (e: any) {
+        const msg: string = e?.message ?? '';
+        if (attempt === 0 && (msg.includes('already in use') || msg.includes('already initialized'))) {
+          usedMatchId = usedMatchId + BigInt(1); // try next ID
+          continue;
+        }
+        toast({ title: 'Match creation failed', description: msg.slice(0, 120) || 'Transaction rejected — check wallet balance.', variant: 'destructive' });
+        dispatch({ type: 'SET_TX_PENDING', pending: false });
+        setCreating(false);
+        return;
+      }
+    }
+    matchId = usedMatchId;
 
     // Fetch live start price
     let startRaw = BigInt(0);
@@ -211,14 +222,24 @@ export default function MatchLobby() {
     }
 
     try {
+      const [cfgPDA]   = getConfigPDA();
+      const [matchPDA] = getMatchPDA(matchId);
+      const [vaultPDA] = getVaultPDA(matchId);
       await program.methods
         .joinMatch(new anchor.BN(matchId.toString()), new anchor.BN(priceRaw.toString()))
+        .accounts({
+          config: cfgPDA,
+          match_account: matchPDA,
+          vault: vaultPDA,
+          player: publicKey,
+          system_program: anchor.web3.SystemProgram.programId,
+        })
         .rpc();
     } catch (e: any) {
       console.warn('[Lobby] on-chain joinMatch failed:', e?.message ?? e);
       toast({
         title: 'Join failed',
-        description: e?.message?.slice(0, 120) ?? 'Transaction rejected — check your wallet balance and try again.',
+        description: (e?.message ?? '').slice(0, 120) || 'Transaction rejected — check wallet balance.',
         variant: 'destructive',
       });
       dispatch({ type: 'SET_TX_PENDING', pending: false });

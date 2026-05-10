@@ -8,7 +8,7 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tool
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useAnchorWallet } from '@solana/wallet-adapter-react';
 import { useGame, useBattleTimer } from '../../store/game-store';
-import { getProgram } from '../../lib/anchor-client';
+import { getProgram, getMatchPDA } from '../../lib/anchor-client';
 import { streamPrice, formatUsd, formatDelta } from '../../lib/pyth';
 import { CARDS, ASSET_NAMES } from '../../lib/constants';
 import * as anchor from '@coral-xyz/anchor';
@@ -126,23 +126,47 @@ export default function BattleView() {
       return;
     }
 
-    if (!program || !state.salt) {
-      toast({ title: 'Cannot reveal', description: 'Wallet disconnected or session data missing.', variant: 'destructive' });
+    if (!program) {
+      toast({ title: 'Cannot reveal', description: 'Wallet disconnected.', variant: 'destructive' });
+      return;
+    }
+
+    // Recover salt from localStorage if the in-memory state was lost (e.g. page refresh)
+    let salt = state.salt;
+    let plays = myPlays;
+    if (!salt) {
+      const saltHex = localStorage.getItem(`cypher_salt_${match.matchId}`);
+      if (saltHex) {
+        salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(h => parseInt(h, 16)));
+      }
+    }
+    if (plays.length === 0) {
+      const playsJson = localStorage.getItem(`cypher_plays_${match.matchId}`);
+      if (playsJson) {
+        plays = JSON.parse(playsJson).map((p: any) => ({
+          cardId: p.cardId, direction: p.direction, snipeTarget: BigInt(p.snipeTarget),
+        }));
+      }
+    }
+    if (!salt || plays.length === 0) {
+      toast({ title: 'Cannot reveal', description: 'Session data missing — please start a new match.', variant: 'destructive' });
       return;
     }
 
     dispatch({ type: 'SET_TX_PENDING', pending: true });
     setRevealing(true);
     try {
-      const snipeTarget = myPlays.find(p => p.cardId === 3)?.snipeTarget ?? BigInt(0);
+      const snipeTarget = plays.find(p => p.cardId === 3)?.snipeTarget ?? BigInt(0);
+      const [matchPDA] = getMatchPDA(match.matchId);
       await program.methods
         .revealPlays(
           new anchor.BN(match.matchId.toString()),
-          myPlays.map(p => p.cardId),
-          myPlays.map(p => p.direction),
+          plays.map(p => p.cardId),
+          plays.map(p => p.direction),
           new anchor.BN(snipeTarget.toString()),
-          Array.from(state.salt),
+          Array.from(salt),
         )
+        .accounts({ match_account: matchPDA, player: publicKey! })
         .rpc();
       sounds.commit();
       setRevealed(true);

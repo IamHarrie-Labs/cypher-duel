@@ -4,7 +4,7 @@ import { Lock, CheckCircle2 } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useAnchorWallet } from '@solana/wallet-adapter-react';
 import { useGame, type CardPlay } from '../../store/game-store';
-import { getProgram } from '../../lib/anchor-client';
+import { getProgram, getMatchPDA } from '../../lib/anchor-client';
 import { computeCommitHash, randomSalt } from '../../lib/crypto';
 import { CARDS, ASSET_NAMES } from '../../lib/constants';
 import { CardIcon, CARD_ICON_ID } from '../CardIcons';
@@ -118,11 +118,21 @@ export default function CardHand() {
       return;
     }
 
+    // Persist salt + plays so reveal_plays can succeed even after a page refresh
+    const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+    const playsJson = JSON.stringify(plays.map(p => ({
+      cardId: p.cardId, direction: p.direction, snipeTarget: p.snipeTarget.toString(),
+    })));
+    localStorage.setItem(`cypher_salt_${match.matchId}`, saltHex);
+    localStorage.setItem(`cypher_plays_${match.matchId}`, playsJson);
+
     dispatch({ type: 'SET_TX_PENDING', pending: true });
     setCommitting(true);
     try {
+      const [matchPDA] = getMatchPDA(match.matchId);
       await program.methods
         .commitPlays(new anchor.BN(match.matchId.toString()), Array.from(hash))
+        .accounts({ match_account: matchPDA, player: publicKey })
         .rpc();
       sounds.commit();
       setCommitted(true);
@@ -132,7 +142,7 @@ export default function CardHand() {
       sounds.error();
       toast({
         title: 'Commit failed',
-        description: e?.message?.slice(0, 120) ?? 'Transaction rejected — check wallet and try again.',
+        description: (e?.message ?? '').slice(0, 120) || 'Transaction rejected — check wallet and try again.',
         variant: 'destructive',
       });
     } finally {

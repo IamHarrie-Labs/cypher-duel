@@ -179,6 +179,8 @@ const IDL: anchor.Idl = {
   ],
 } as unknown as anchor.Idl;
 
+export const TREASURY = new PublicKey('7FzTczMDCTvxuiLdBT15ryp1a55FBDVs4Xz5p989C41U');
+
 export function getProgram(connection: Connection, wallet: AnchorWallet): anchor.Program | null {
   try {
     const provider = new anchor.AnchorProvider(connection, wallet, {
@@ -190,6 +192,36 @@ export function getProgram(connection: Connection, wallet: AnchorWallet): anchor
     console.warn('[anchor-client] getProgram failed:', (e as Error)?.message ?? e);
     return null;
   }
+}
+
+// Ensure arenaConfig PDA exists, auto-initialize if missing.
+// Returns the current total_matches count (= next valid matchId).
+export async function ensureArenaConfig(program: anchor.Program): Promise<bigint> {
+  const [configPDA] = getConfigPDA();
+  const client = (program.account as any)?.arenaConfig;
+  if (!client) throw new Error('Program account client unavailable');
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const config = await client.fetch(configPDA);
+      const total = config.total_matches ?? config.totalMatches ?? BigInt(0);
+      return BigInt(total.toString());
+    } catch (fetchErr: any) {
+      const msg: string = fetchErr?.message ?? '';
+      if (msg.includes('Account does not exist') || msg.includes('not found') || msg.includes('could not find')) {
+        try {
+          await program.methods.initializeConfig(250, TREASURY).rpc();
+          await new Promise(r => setTimeout(r, 1500)); // wait for confirmation
+        } catch (initErr: any) {
+          if (!initErr?.message?.includes('already in use')) throw initErr;
+          // Another wallet initialized it concurrently — retry the fetch
+        }
+      } else {
+        throw fetchErr;
+      }
+    }
+  }
+  throw new Error('Unable to initialize arenaConfig after 3 attempts');
 }
 
 export function getConfigPDA(): [PublicKey, number] {
