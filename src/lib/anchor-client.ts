@@ -132,12 +132,21 @@ const IDL: anchor.Idl = {
   types: [],
 } as unknown as anchor.Idl;
 
-export function getProgram(connection: Connection, wallet: AnchorWallet) {
-  const provider = new anchor.AnchorProvider(connection, wallet, {
-    commitment: 'confirmed',
-    preflightCommitment: 'confirmed',
-  });
-  return new anchor.Program(IDL, provider);
+export function getProgram(connection: Connection, wallet: AnchorWallet): anchor.Program | null {
+  // The deployed devnet IDL is missing type definitions for ArenaConfig and MatchAccount,
+  // which causes anchor.Program(...) to throw "Account not found: <name>" synchronously
+  // when constructed. We catch that here so callers get null and fall back to demo mode
+  // instead of crashing render trees.
+  try {
+    const provider = new anchor.AnchorProvider(connection, wallet, {
+      commitment: 'confirmed',
+      preflightCommitment: 'confirmed',
+    });
+    return new anchor.Program(IDL, provider);
+  } catch (e) {
+    console.warn('[anchor-client] getProgram failed:', (e as Error)?.message ?? e);
+    return null;
+  }
 }
 
 export function getConfigPDA(): [PublicKey, number] {
