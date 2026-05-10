@@ -40,8 +40,21 @@ export default function SettleView() {
     setSettling(true);
 
     try {
-      const endPriceData = await fetchLatestPrice(match.asset);
-      const endRaw = endPriceData.raw;
+      // Fetch end price with a 6 s timeout — fall back to last streamed price
+      // so the button never locks up if Pyth's Hermes endpoint is slow.
+      let endRaw: bigint;
+      try {
+        const priceData = await Promise.race([
+          fetchLatestPrice(match.asset),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 6000)
+          ),
+        ]);
+        endRaw = priceData.raw;
+      } catch {
+        endRaw = state.currentPriceRaw ?? match.startPrice ?? BigInt(0);
+      }
+
       const highRaw = state.battleHighRaw > endRaw ? state.battleHighRaw : endRaw;
       const lowRaw = state.battleLowRaw > 0n && state.battleLowRaw < endRaw ? state.battleLowRaw : endRaw;
 
@@ -77,20 +90,12 @@ export default function SettleView() {
         throw new Error('Wallet disconnected.');
       }
 
-      // Read the authoritative player addresses from chain — local state can be stale
-      let playerAAddr = match.playerA;
-      let playerBAddr = match.playerB ?? '';
-      try {
-        const [matchPDA] = getMatchPDA(match.matchId);
-        const info = await connection.getAccountInfo(matchPDA, 'confirmed');
-        if (info?.data && info.data.length >= 72) {
-          const pA = new PublicKey(info.data.slice(8, 40)).toBase58();
-          const pB = new PublicKey(info.data.slice(40, 72)).toBase58();
-          const DEFAULT = '11111111111111111111111111111111';
-          if (pA !== DEFAULT) playerAAddr = pA;
-          if (pB !== DEFAULT) playerBAddr = pB;
-        }
-      } catch { /* use local state as fallback */ }
+      // Use player addresses from local state — they were set correctly when
+      // the match was created / joined. Avoid raw byte reads here since the
+      // on-chain field offsets are uncertain and overwriting with a garbage
+      // address causes settle_match to fail.
+      const playerAAddr = match.playerA;
+      const playerBAddr = match.playerB ?? '';
 
       if (!playerBAddr) throw new Error('Opponent address unknown — match may not be fully on-chain.');
 
