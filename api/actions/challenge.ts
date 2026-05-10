@@ -55,25 +55,37 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   const { matchId, asset = 'BTC', stake = '0.05' } = req.query as Record<string, string>;
+
+  // Absolute origin needed for Blinks — wallets won't resolve relative hrefs
+  const proto  = req.headers['x-forwarded-proto'] ?? 'https';
+  const host   = req.headers['x-forwarded-host'] ?? req.headers.host ?? 'playcypher.vercel.app';
+  const origin = `${proto}://${host}`;
   const baseHref = matchId
-    ? `/api/actions/challenge?matchId=${matchId}&asset=${asset}`
-    : `/api/actions/challenge?asset=${asset}`;
+    ? `${origin}/api/actions/challenge?matchId=${matchId}&asset=${asset}`
+    : `${origin}/api/actions/challenge?asset=${asset}`;
 
   // ── GET: return Blink metadata card (no crypto needed) ────────────────────
   if (req.method === 'GET') {
+    // For a specific match, challenger must match the exact stake.
+    // Build deduplicated action buttons: primary stake + alternatives only if different.
+    const ALL_STAKES = ['0.01', '0.05', '0.1', '0.5'];
+    const actions = [
+      // Primary — always show the match stake first
+      { label: `Accept — ${stake} SOL`, href: `${baseHref}&stake=${stake}`, type: 'transaction' },
+      // Alternatives — show up to 2 other amounts
+      ...ALL_STAKES
+        .filter(s => s !== stake)
+        .slice(0, 2)
+        .map(s => ({ label: `Accept — ${s} SOL`, href: `${baseHref}&stake=${s}`, type: 'transaction' })),
+    ];
+
     return res.status(200).json({
       type: 'action',
-      icon: 'https://playcypher.vercel.app/og.png',
+      icon: `${origin}/og.png`,
       title: `Cypher Duel — ${asset}/USD`,
       description: `1v1 sealed-bid price-prediction combat on Solana devnet. Pick 3 cards, commit, battle 60 s of live Pyth prices, settle on-chain. Stake: ${stake} SOL each.`,
       label: 'Accept Challenge',
-      links: {
-        actions: [
-          { label: `Accept — ${stake} SOL`, href: `${baseHref}&stake=${stake}`, type: 'transaction' },
-          { label: 'Accept — 0.01 SOL',     href: `${baseHref}&stake=0.01`,    type: 'transaction' },
-          { label: 'Accept — 0.1 SOL',      href: `${baseHref}&stake=0.1`,     type: 'transaction' },
-        ],
-      },
+      links: { actions },
     });
   }
 
