@@ -1,9 +1,10 @@
-import { PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
+// No top-level @solana/web3.js import — it can crash the Lambda during module
+// initialisation before any handler code runs. Use dynamic import() inside
+// the POST handler so failures are catchable and return a JSON error instead
+// of FUNCTION_INVOCATION_FAILED.
 
-const PROGRAM_ID_STR = 'EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN';
-const SYSTEM_PROGRAM  = '11111111111111111111111111111111';
-const RPC_ENDPOINT    = 'https://api.devnet.solana.com';
-const PYTH_HERMES     = 'https://hermes.pyth.network/v2/updates/price/latest';
+const RPC_ENDPOINT = 'https://api.devnet.solana.com';
+const PYTH_HERMES  = 'https://hermes.pyth.network/v2/updates/price/latest';
 
 const PYTH_IDS: Record<string, string> = {
   BTC: 'e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43',
@@ -11,8 +12,7 @@ const PYTH_IDS: Record<string, string> = {
   SOL: 'ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d',
 };
 
-// Direct RPC call — avoids Connection + WebSocket entirely
-async function getLatestBlockhash(): Promise<{ blockhash: string; lastValidBlockHeight: number }> {
+async function getLatestBlockhash() {
   const res = await fetch(RPC_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -22,11 +22,11 @@ async function getLatestBlockhash(): Promise<{ blockhash: string; lastValidBlock
       params: [{ commitment: 'confirmed' }],
     }),
   });
-  const data = await res.json() as any;
+  const data: any = await res.json();
   if (data.error) throw new Error(data.error.message);
   return {
-    blockhash: data.result.value.blockhash,
-    lastValidBlockHeight: data.result.value.lastValidBlockHeight,
+    blockhash: data.result.value.blockhash as string,
+    lastValidBlockHeight: data.result.value.lastValidBlockHeight as number,
   };
 }
 
@@ -34,51 +34,17 @@ async function fetchPythPrice(asset: string): Promise<bigint> {
   try {
     const feedId = PYTH_IDS[asset.toUpperCase()] ?? PYTH_IDS['BTC'];
     const res = await fetch(`${PYTH_HERMES}?ids[]=${feedId}`);
-    if (!res.ok) throw new Error('Pyth fetch failed');
-    const data = await res.json() as { parsed: Array<{ price: { price: string } }> };
+    if (!res.ok) throw new Error('Pyth HTTP error');
+    const data: any = await res.json();
     return BigInt(data.parsed[0].price.price);
   } catch {
-    return BigInt(97500_00000000); // $97,500 fallback
+    return BigInt(97500_00000000);
   }
-}
-
-function getPDA(seeds: Buffer[], programId: PublicKey): PublicKey {
-  return PublicKey.findProgramAddressSync(seeds, programId)[0];
-}
-
-function buildJoinMatchInstruction(
-  programId: PublicKey,
-  player: PublicKey,
-  matchId: bigint,
-  startPrice: bigint,
-): TransactionInstruction {
-  const configPDA  = getPDA([Buffer.from('arena_config')], programId);
-  const matchIdBuf = Buffer.alloc(8);
-  matchIdBuf.writeBigUInt64LE(matchId);
-  const matchPDA   = getPDA([Buffer.from('match'), matchIdBuf], programId);
-  const vaultPDA   = getPDA([Buffer.from('vault'), matchIdBuf], programId);
-
-  const disc     = Buffer.from([244, 8, 47, 130, 192, 59, 179, 44]);
-  const priceBuf = Buffer.alloc(8);
-  priceBuf.writeBigInt64LE(startPrice);
-  const data     = Buffer.concat([disc, matchIdBuf, priceBuf]);
-
-  return new TransactionInstruction({
-    programId,
-    keys: [
-      { pubkey: configPDA,                    isSigner: false, isWritable: true  },
-      { pubkey: matchPDA,                     isSigner: false, isWritable: true  },
-      { pubkey: vaultPDA,                     isSigner: false, isWritable: true  },
-      { pubkey: player,                       isSigner: true,  isWritable: true  },
-      { pubkey: new PublicKey(SYSTEM_PROGRAM), isSigner: false, isWritable: false },
-    ],
-    data,
-  });
 }
 
 function setCors(res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-blockchain-ids,x-action-version');
   res.setHeader('X-Action-Version', '2.1.3');
   res.setHeader('X-Blockchain-Ids', 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1');
@@ -86,7 +52,6 @@ function setCors(res: any) {
 
 export default async function handler(req: any, res: any) {
   setCors(res);
-
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   const { matchId, asset = 'BTC', stake = '0.05' } = req.query as Record<string, string>;
@@ -94,13 +59,13 @@ export default async function handler(req: any, res: any) {
     ? `/api/actions/challenge?matchId=${matchId}&asset=${asset}`
     : `/api/actions/challenge?asset=${asset}`;
 
-  // GET — return Blink metadata card
+  // ── GET: return Blink metadata card (no crypto needed) ────────────────────
   if (req.method === 'GET') {
     return res.status(200).json({
       type: 'action',
-      icon: 'https://raw.githubusercontent.com/IamHarrie-Labs/cypher-duel/master/public/og.svg',
+      icon: 'https://playcypher.vercel.app/og.png',
       title: `Cypher Duel — ${asset}/USD`,
-      description: `1v1 sealed-bid price-prediction combat on Solana devnet. Pick 3 cards, SHA-256 commit, battle 60 s of live Pyth prices, settle on-chain. Stakes: ${stake} SOL each.`,
+      description: `1v1 sealed-bid price-prediction combat on Solana devnet. Pick 3 cards, commit, battle 60 s of live Pyth prices, settle on-chain. Stake: ${stake} SOL each.`,
       label: 'Accept Challenge',
       links: {
         actions: [
@@ -112,41 +77,64 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  // POST — build and return the serialized join_match transaction
+  // ── POST: build serialized join_match transaction ─────────────────────────
   if (req.method === 'POST') {
     const account: string | undefined = req.body?.account;
-    if (!account) {
-      return res.status(400).json({ message: 'Missing account in request body' });
-    }
+    if (!account) return res.status(400).json({ message: 'Missing account in request body' });
 
     if (!matchId) {
       return res.status(200).json({
         type: 'external-link',
-        externalLink: `https://playcypher.vercel.app/game?asset=${asset}`,
+        externalLink: 'https://playcypher.vercel.app/game',
         message: 'Opening Cypher arena — create or join a match!',
       });
     }
 
     try {
-      // Lazy-initialize PublicKey objects inside handler to avoid module-level crashes
-      const programId  = new PublicKey(PROGRAM_ID_STR);
-      const player     = new PublicKey(account);
-      const mid        = BigInt(matchId);
+      // Dynamic import keeps @solana/web3.js failures isolated and catchable
+      const solana = await import('@solana/web3.js');
+      const { PublicKey, Transaction, TransactionInstruction } = solana;
 
+      const PROGRAM_ID    = new PublicKey('EegqHgDLzQsoumEdhK9PLFyLEfGoqpsUESKD8p1QKhXN');
+      const SYSTEM_PROG   = new PublicKey('11111111111111111111111111111111');
+      const player        = new PublicKey(account);
+      const mid           = BigInt(matchId);
+
+      // PDAs
+      const midBuf = Buffer.alloc(8);
+      midBuf.writeBigUInt64LE(mid);
+      const configPDA = PublicKey.findProgramAddressSync([Buffer.from('arena_config')], PROGRAM_ID)[0];
+      const matchPDA  = PublicKey.findProgramAddressSync([Buffer.from('match'), midBuf], PROGRAM_ID)[0];
+      const vaultPDA  = PublicKey.findProgramAddressSync([Buffer.from('vault'), midBuf], PROGRAM_ID)[0];
+
+      // join_match discriminator + args
+      const disc     = Buffer.from([244, 8, 47, 130, 192, 59, 179, 44]);
+      const priceBuf = Buffer.alloc(8);
       const [startPrice, { blockhash, lastValidBlockHeight }] = await Promise.all([
         fetchPythPrice(asset),
         getLatestBlockhash(),
       ]);
+      priceBuf.writeBigInt64LE(startPrice);
+      const data = Buffer.concat([disc, midBuf, priceBuf]);
 
-      const ix = buildJoinMatchInstruction(programId, player, mid, startPrice);
+      const ix = new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          { pubkey: configPDA,  isSigner: false, isWritable: true  },
+          { pubkey: matchPDA,   isSigner: false, isWritable: true  },
+          { pubkey: vaultPDA,   isSigner: false, isWritable: true  },
+          { pubkey: player,     isSigner: true,  isWritable: true  },
+          { pubkey: SYSTEM_PROG, isSigner: false, isWritable: false },
+        ],
+        data,
+      });
+
       const tx = new Transaction({ feePayer: player, blockhash, lastValidBlockHeight });
       tx.add(ix);
 
-      const base64 = tx.serialize({ requireAllSignatures: false }).toString('base64');
-
       return res.status(200).json({
-        transaction: base64,
-        message: `Joining Cypher duel — ${asset}/USD at $${(Number(startPrice) / 1e8).toFixed(2)}. Stake: ${stake} SOL.`,
+        transaction: tx.serialize({ requireAllSignatures: false }).toString('base64'),
+        message: `Joining duel — ${asset}/USD at $${(Number(startPrice) / 1e8).toFixed(2)}. Stake: ${stake} SOL.`,
       });
     } catch (err: any) {
       console.error('[cypher-blinks] POST error:', err?.message ?? err);
