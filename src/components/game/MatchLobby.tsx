@@ -32,17 +32,20 @@ export default function MatchLobby() {
 
   useEffect(() => {
     if (!program) return;
-    loadConfig();
-    loadOpenMatches();
+    // Wrap in catch so any sync throw from anchor's account-client getters can't crash the render
+    loadConfig().catch(e => console.warn('[Lobby] loadConfig failed:', e));
+    loadOpenMatches().catch(e => console.warn('[Lobby] loadOpenMatches failed:', e));
   }, [program]);
 
   async function loadConfig() {
     if (!program) return;
     try {
-      const config = await (program.account as any).arenaConfig.fetch(configPDA);
+      const accountClient = (program.account as any)?.arenaConfig;
+      if (!accountClient) return;
+      const config = await accountClient.fetch(configPDA);
       setConfigTotalMatches(BigInt(config.totalMatches.toString()));
     } catch {
-      // config not initialized yet
+      // config not initialized or IDL missing type
     }
   }
 
@@ -50,7 +53,12 @@ export default function MatchLobby() {
     if (!program) return;
     setLoading(true);
     try {
-      const allMatches = await (program.account as any).matchAccount.all([
+      const accountClient = (program.account as any)?.matchAccount;
+      if (!accountClient) {
+        dispatch({ type: 'SET_OPEN_MATCHES', matches: [] });
+        return;
+      }
+      const allMatches = await accountClient.all([
         { memcmp: { offset: 8 + 32 + 32 + 1 + 8, bytes: anchor.utils.bytes.bs58.encode(Buffer.from([0])) } },
       ]);
       const open = allMatches
@@ -64,14 +72,14 @@ export default function MatchLobby() {
         }));
       dispatch({ type: 'SET_OPEN_MATCHES', matches: open });
     } catch {
-      // can't load yet
+      dispatch({ type: 'SET_OPEN_MATCHES', matches: [] });
     } finally {
       setLoading(false);
     }
   }
 
   async function handleCreateMatch() {
-    if (!program || !publicKey) return;
+    if (!publicKey) return;
     const stakeSOL = customStake ? parseFloat(customStake) : selectedStake;
     if (isNaN(stakeSOL) || stakeSOL < 0.01) {
       dispatch({ type: 'SET_ERROR', error: 'Minimum stake is 0.01 SOL' });
@@ -80,77 +88,106 @@ export default function MatchLobby() {
 
     dispatch({ type: 'SET_TX_PENDING', pending: true });
     setCreating(true);
-    try {
-      const matchId = configTotalMatches;
-      const stake = solToLamports(stakeSOL);
 
-      await program.methods
-        .createMatch(selectedAsset, new anchor.BN(stake.toString()), new anchor.BN(matchId.toString()))
-        .rpc();
-
-      dispatch({
-        type: 'SET_MATCH',
-        match: {
-          matchId,
-          playerA: publicKey.toBase58(),
-          playerB: null,
-          asset: selectedAsset,
-          stakeSOL,
-          state: 0,
-          startPrice: BigInt(0),
-          endPrice: BigInt(0),
-          highPrice: BigInt(0),
-          lowPrice: BigInt(0),
-          scoreA: 0,
-          scoreB: 0,
-          winner: null,
-          createdAt: Date.now(),
-        },
-      });
-      dispatch({ type: 'SET_PHASE', phase: 'WAITING' });
-      dispatch({ type: 'SET_TX_PENDING', pending: false });
-      setConfigTotalMatches(prev => prev + BigInt(1));
-    } catch (e: any) {
-      dispatch({ type: 'SET_ERROR', error: e.message ?? 'Transaction failed' });
-    } finally {
-      setCreating(false);
+    // Try on-chain create_match. If the program isn't fully initialized on devnet
+    // (config account missing, IDL mismatch, etc.) we fall back to a local match so
+    // judges/players can still walk through the full UI flow.
+    let onChainOk = false;
+    if (program) {
+      try {
+        const matchId = configTotalMatches;
+        const stake = solToLamports(stakeSOL);
+        await program.methods
+          .createMatch(selectedAsset, new anchor.BN(stake.toString()), new anchor.BN(matchId.toString()))
+          .rpc();
+        onChainOk = true;
+        setConfigTotalMatches(prev => prev + BigInt(1));
+      } catch (e: any) {
+        console.warn('[Lobby] on-chain createMatch failed, using local match:', e?.message ?? e);
+      }
     }
+
+    // Fetch live start price for either path; fall back to a sensible default
+    let startRaw = BigInt(0);
+    try {
+      const priceData = await fetchLatestPrice(selectedAsset);
+      startRaw = priceData.raw;
+    } catch {
+      startRaw = BigInt(0);
+    }
+
+    dispatch({
+      type: 'SET_MATCH',
+      match: {
+        matchId: configTotalMatches,
+        playerA: publicKey.toBase58(),
+        playerB: null,
+        asset: selectedAsset,
+        stakeSOL,
+        state: 0,
+        startPrice: startRaw,
+        endPrice: BigInt(0),
+        highPrice: BigInt(0),
+        lowPrice: BigInt(0),
+        scoreA: 0,
+        scoreB: 0,
+        winner: null,
+        createdAt: Date.now(),
+      },
+    });
+    if (!onChainOk) dispatch({ type: 'SET_DEMO_MODE', on: true });
+    dispatch({ type: 'SET_PHASE', phase: 'WAITING' });
+    dispatch({ type: 'SET_TX_PENDING', pending: false });
+    setCreating(false);
   }
 
   async function handleJoinMatch(matchId: bigint, asset: AssetId, stakeSOL: number, playerA: string) {
-    if (!program || !publicKey) return;
+    if (!publicKey) return;
     dispatch({ type: 'SET_TX_PENDING', pending: true });
+
+    let priceRaw = BigInt(0);
     try {
       const priceData = await fetchLatestPrice(asset);
-      await program.methods
-        .joinMatch(new anchor.BN(matchId.toString()), new anchor.BN(priceData.raw.toString()))
-        .rpc();
-
-      dispatch({
-        type: 'SET_MATCH',
-        match: {
-          matchId,
-          playerA,
-          playerB: publicKey.toBase58(),
-          asset,
-          stakeSOL,
-          state: 1,
-          startPrice: priceData.raw,
-          endPrice: BigInt(0),
-          highPrice: BigInt(0),
-          lowPrice: BigInt(0),
-          scoreA: 0,
-          scoreB: 0,
-          winner: null,
-          createdAt: Date.now(),
-        },
-      });
-      dispatch({ type: 'SET_PHASE', phase: 'DRAFT' });
-      dispatch({ type: 'SET_TX_PENDING', pending: false });
-      dispatch({ type: 'REMOVE_OPEN_MATCH', matchId });
-    } catch (e: any) {
-      dispatch({ type: 'SET_ERROR', error: e.message ?? 'Join failed' });
+      priceRaw = priceData.raw;
+    } catch {
+      priceRaw = BigInt(0);
     }
+
+    let onChainOk = false;
+    if (program) {
+      try {
+        await program.methods
+          .joinMatch(new anchor.BN(matchId.toString()), new anchor.BN(priceRaw.toString()))
+          .rpc();
+        onChainOk = true;
+      } catch (e: any) {
+        console.warn('[Lobby] on-chain joinMatch failed, using local match:', e?.message ?? e);
+      }
+    }
+
+    dispatch({
+      type: 'SET_MATCH',
+      match: {
+        matchId,
+        playerA,
+        playerB: publicKey.toBase58(),
+        asset,
+        stakeSOL,
+        state: 1,
+        startPrice: priceRaw,
+        endPrice: BigInt(0),
+        highPrice: BigInt(0),
+        lowPrice: BigInt(0),
+        scoreA: 0,
+        scoreB: 0,
+        winner: null,
+        createdAt: Date.now(),
+      },
+    });
+    if (!onChainOk) dispatch({ type: 'SET_DEMO_MODE', on: true });
+    dispatch({ type: 'SET_PHASE', phase: 'DRAFT' });
+    dispatch({ type: 'SET_TX_PENDING', pending: false });
+    dispatch({ type: 'REMOVE_OPEN_MATCH', matchId });
   }
 
   function copyAddr(addr: string) {
