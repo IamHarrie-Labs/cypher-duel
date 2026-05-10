@@ -193,7 +193,7 @@ function GameInner() {
                   Connect to play
                 </h2>
                 <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '0.88rem', color: '#666', lineHeight: 1.6, marginBottom: 28 }}>
-                  You need a Phantom or Solflare wallet with some devnet SOL to enter the arena.
+                  Connect any Solana wallet (Phantom, Backpack, Solflare, OKX…) with some devnet SOL to enter the arena.
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
                   <WalletMultiButton />
