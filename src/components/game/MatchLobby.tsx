@@ -9,6 +9,7 @@ import { getProgram, getConfigPDA, solToLamports, lamportsToSol } from '../../li
 import { fetchLatestPrice } from '../../lib/pyth';
 import { ASSET_NAMES, CARDS, MIN_STAKE_LAMPORTS } from '../../lib/constants';
 import type { AssetId } from '../../lib/constants';
+import { useToast } from '../../hooks/use-toast';
 import * as anchor from '@coral-xyz/anchor';
 
 const STAKE_OPTIONS = [0.01, 0.05, 0.1, 0.25, 0.5, 1.0];
@@ -31,6 +32,7 @@ export default function MatchLobby() {
   const program = anchorWallet ? getProgram(connection, anchorWallet) : null;
   const [configPDA] = getConfigPDA();
   const joinHandled = useRef(false);
+  const { toast } = useToast();
 
   // Auto-join when redirected from a Blink: /game?join=<matchId>&asset=SOL&stake=0.05&playerA=<addr>
   useEffect(() => {
@@ -130,37 +132,53 @@ export default function MatchLobby() {
     dispatch({ type: 'SET_TX_PENDING', pending: true });
     setCreating(true);
 
-    // Try on-chain create_match. If the program isn't fully initialized on devnet
-    // (config account missing, IDL mismatch, etc.) we fall back to a local match so
-    // judges/players can still walk through the full UI flow.
+    // Always re-fetch total_matches from chain so matchId is never stale.
+    // Stale state caused silent failures when a previous match already occupied ID 0.
+    let matchId = configTotalMatches;
+    if (program) {
+      try {
+        const accountClient = (program.account as any)?.arenaConfig;
+        if (accountClient) {
+          const freshConfig = await accountClient.fetch(configPDA);
+          const freshTotal = freshConfig.total_matches ?? freshConfig.totalMatches ?? BigInt(0);
+          matchId = BigInt(freshTotal.toString());
+          setConfigTotalMatches(matchId);
+        }
+      } catch {
+        // arenaConfig missing — initialize_config will run via loadConfig; use local state
+      }
+    }
+
     let onChainOk = false;
     if (program) {
       try {
-        const matchId = configTotalMatches;
         const stake = solToLamports(stakeSOL);
         await program.methods
           .createMatch(selectedAsset, new anchor.BN(stake.toString()), new anchor.BN(matchId.toString()))
           .rpc();
         onChainOk = true;
-        setConfigTotalMatches(prev => prev + BigInt(1));
+        setConfigTotalMatches(matchId + BigInt(1));
       } catch (e: any) {
-        console.warn('[Lobby] on-chain createMatch failed, using local match:', e?.message ?? e);
+        console.warn('[Lobby] on-chain createMatch failed:', e?.message ?? e);
+        toast({
+          title: 'On-chain create failed',
+          description: e?.message?.slice(0, 120) ?? 'Transaction rejected — running in demo mode. No real SOL will be wagered.',
+          variant: 'destructive',
+        });
       }
     }
 
-    // Fetch live start price for either path; fall back to a sensible default
+    // Fetch live start price
     let startRaw = BigInt(0);
     try {
       const priceData = await fetchLatestPrice(selectedAsset);
       startRaw = priceData.raw;
-    } catch {
-      startRaw = BigInt(0);
-    }
+    } catch { /* use 0 fallback */ }
 
     dispatch({
       type: 'SET_MATCH',
       match: {
-        matchId: configTotalMatches,
+        matchId,
         playerA: publicKey.toBase58(),
         playerB: null,
         asset: selectedAsset,
@@ -202,7 +220,12 @@ export default function MatchLobby() {
           .rpc();
         onChainOk = true;
       } catch (e: any) {
-        console.warn('[Lobby] on-chain joinMatch failed, using local match:', e?.message ?? e);
+        console.warn('[Lobby] on-chain joinMatch failed:', e?.message ?? e);
+        toast({
+          title: 'On-chain join failed',
+          description: e?.message?.slice(0, 120) ?? 'Transaction rejected — running in demo mode. No real SOL will be wagered.',
+          variant: 'destructive',
+        });
       }
     }
 
