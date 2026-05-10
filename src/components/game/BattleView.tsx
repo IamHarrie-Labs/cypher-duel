@@ -117,8 +117,7 @@ export default function BattleView() {
   }
 
   async function handleReveal() {
-    // Demo mode: skip on-chain tx, go straight to settle
-    if (state.demoMode) {
+    if (state.demoMode || !program || !state.salt) {
       sounds.commit();
       setRevealed(true);
       toast({ title: 'Plays revealed!', description: 'Settling match…' });
@@ -126,9 +125,9 @@ export default function BattleView() {
       return;
     }
 
-    if (!program || !state.salt) return;
     dispatch({ type: 'SET_TX_PENDING', pending: true });
     setRevealing(true);
+    let onChainOk = false;
     try {
       const snipeTarget = myPlays.find(p => p.cardId === 3)?.snipeTarget ?? BigInt(0);
       await program.methods
@@ -140,13 +139,22 @@ export default function BattleView() {
           Array.from(state.salt),
         )
         .rpc();
-      setRevealed(true);
-      dispatch({ type: 'SET_TX_PENDING', pending: false });
+      onChainOk = true;
     } catch (e: any) {
-      dispatch({ type: 'SET_ERROR', error: e.message ?? 'Reveal failed' });
+      console.warn('[BattleView] reveal_plays failed, falling back to demo:', e?.message ?? e);
     } finally {
       setRevealing(false);
+      dispatch({ type: 'SET_TX_PENDING', pending: false });
     }
+
+    if (!onChainOk) dispatch({ type: 'SET_DEMO_MODE', on: true });
+    sounds.commit();
+    setRevealed(true);
+    toast({
+      title: 'Plays revealed!',
+      description: onChainOk ? 'Verified on-chain — proceeding to settle…' : 'Revealed locally — proceeding to settle…',
+    });
+    setTimeout(() => dispatch({ type: 'SET_PHASE', phase: 'SETTLE' }), 800);
   }
 
   const currentPrice = state.currentPrice;

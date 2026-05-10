@@ -6,7 +6,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useAnchorWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { useGame } from '../../store/game-store';
-import { getProgram } from '../../lib/anchor-client';
+import { getProgram, fetchSettledMatch } from '../../lib/anchor-client';
 import { fetchLatestPrice, formatUsd, formatDelta } from '../../lib/pyth';
 import { ASSET_NAMES, CARDS } from '../../lib/constants';
 import * as anchor from '@coral-xyz/anchor';
@@ -51,61 +51,62 @@ export default function SettleView() {
       const highUsd = Number(highRaw) / 1e8;
       const lowUsd = Number(lowRaw) / 1e8;
 
-      let myScore = 0;
-      state.myPlays.forEach(play => {
-        myScore += scoreCard(play.cardId, play.direction, play.snipeTarget, startPrice, endUsd, highUsd, lowUsd);
-      });
-      // Simulated opponent picks 2 random cards
-      const oppScore = Math.floor(Math.random() * 3) * 15;
+      // Compute my score locally — mirrors on-chain score_card
+      const myScore = state.myPlays.reduce((acc, play) =>
+        acc + scoreCard(play.cardId, play.direction, play.snipeTarget, startPrice, endUsd, highUsd, lowUsd), 0);
 
-      // Demo mode: skip on-chain tx, synthesize result
-      if (state.demoMode) {
-        const demoTx = 'DEMO' + Math.random().toString(36).slice(2, 10).toUpperCase();
-        setSettleTx(demoTx);
+      const isPlayerA = publicKey?.toBase58() === match.playerA;
+
+      // Always attempt on-chain settle if wallet + playerB exist — vault may hold real SOL
+      if (program && publicKey && match.playerB) {
+        const playerA = new PublicKey(match.playerA);
+        const playerB = new PublicKey(match.playerB);
+
+        const tx = await program.methods
+          .settleMatch(
+            new anchor.BN(match.matchId.toString()),
+            new anchor.BN(endRaw.toString()),
+            new anchor.BN(highRaw.toString()),
+            new anchor.BN(lowRaw.toString()),
+          )
+          .accounts({ playerA, playerB, treasury: TREASURY })
+          .rpc();
+
+        setSettleTx(tx);
+
+        // Read actual scores written by the program
+        let scoreA = isPlayerA ? myScore : 0;
+        let scoreB = isPlayerA ? 0 : myScore;
+        let winner: string | null = myScore > 0 ? (isPlayerA ? match.playerA : match.playerB) : null;
+        try {
+          const settled = await fetchSettledMatch(connection, match.matchId);
+          if (settled) { scoreA = settled.scoreA; scoreB = settled.scoreB; winner = settled.winner; }
+        } catch { /* use locally-computed fallback */ }
+
         dispatch({
           type: 'SET_MATCH',
-          match: {
-            ...match,
-            scoreA: myScore,
-            scoreB: oppScore,
-            winner: myScore >= oppScore ? match.playerA : (match.playerB ?? match.playerA),
-            endPrice: endRaw,
-            highPrice: highRaw,
-            lowPrice: lowRaw,
-          },
+          match: { ...match, scoreA, scoreB, winner, endPrice: endRaw, highPrice: highRaw, lowPrice: lowRaw },
         });
-        dispatch({ type: 'SET_RESULT', message: `Demo settled! Your score: ${myScore} vs ${oppScore} pts` });
-        dispatch({ type: 'SET_TX_PENDING', pending: false });
-        // Auto-advance to results after a short delay
-        setTimeout(() => dispatch({ type: 'SET_PHASE', phase: 'RESULT' }), 1500);
+        dispatch({ type: 'SET_RESULT', message: `Settled on-chain! Tx: ${tx.slice(0, 8)}…` });
         return;
       }
 
-      if (!program || !publicKey) {
-        dispatch({ type: 'SET_ERROR', error: 'Connect wallet to settle on-chain' });
-        return;
-      }
-
-      const playerA = new PublicKey(match.playerA);
-      const playerB = new PublicKey(match.playerB!);
-
-      const tx = await program.methods
-        .settleMatch(
-          new anchor.BN(match.matchId.toString()),
-          new anchor.BN(endRaw.toString()),
-          new anchor.BN(highRaw.toString()),
-          new anchor.BN(lowRaw.toString()),
-        )
-        .accounts({ playerA, playerB, treasury: TREASURY })
-        .rpc();
-
-      setSettleTx(tx);
-      dispatch({ type: 'SET_RESULT', message: `Settlement submitted! Tx: ${tx.slice(0, 8)}… | Your score: ${myScore} pts` });
-      dispatch({ type: 'SET_TX_PENDING', pending: false });
+      // Demo fallback — no vault, no real SOL, synthesize result
+      const scoreA = isPlayerA ? myScore : 0;
+      const scoreB = isPlayerA ? 0 : myScore;
+      const winner = myScore > 0 ? (isPlayerA ? match.playerA : (match.playerB ?? match.playerA)) : (match.playerB ?? match.playerA);
+      const demoTx = 'DEMO' + Math.random().toString(36).slice(2, 10).toUpperCase();
+      setSettleTx(demoTx);
+      dispatch({
+        type: 'SET_MATCH',
+        match: { ...match, scoreA, scoreB, winner, endPrice: endRaw, highPrice: highRaw, lowPrice: lowRaw },
+      });
+      dispatch({ type: 'SET_RESULT', message: `Demo settled! Your score: ${myScore} pts` });
     } catch (e: any) {
-      dispatch({ type: 'SET_ERROR', error: e.message ?? 'Settlement failed' });
+      dispatch({ type: 'SET_ERROR', error: e.message ?? 'Settlement failed — check wallet and try again.' });
     } finally {
       setSettling(false);
+      dispatch({ type: 'SET_TX_PENDING', pending: false });
     }
   }
 

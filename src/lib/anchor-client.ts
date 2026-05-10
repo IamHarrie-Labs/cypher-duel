@@ -216,9 +216,13 @@ export function lamportsToSol(lamports: bigint | number): number {
   return Number(lamports) / LAMPORTS_PER_SOL;
 }
 
-// Fetch raw match account data and parse playerB + state without relying on
-// Anchor's deserializer (which needs correct type field ordering).
-// Layout: disc(8) + playerA(32) + playerB(32) + asset(1) + stakeAmount(8) + state(1) + ...
+// Raw match account layout (bytes):
+// disc(8) playerA(32) playerB(32) asset(1) stakeAmount(8) state(1) matchId(8)
+// startPrice(8) endPrice(8) highPrice(8) lowPrice(8)
+// commitHashA(32) commitHashB(32) cardsA(3) directionsA(3) snipeTargetA(8)
+// cardsB(3) directionsB(3) snipeTargetB(8)
+// scoreA(1@214) scoreB(1@215) winner(32@216) createdAt(8@248)
+
 export async function fetchMatchState(
   connection: Connection,
   matchId: bigint,
@@ -228,12 +232,32 @@ export async function fetchMatchState(
     const info = await connection.getAccountInfo(matchPDA, 'confirmed');
     if (!info) return null;
     const data = info.data;
-    // playerB starts at byte 40 (8 disc + 32 playerA)
     const playerBBytes = data.slice(40, 72);
     const isDefault = playerBBytes.every(b => b === 0);
     const playerB = isDefault ? null : new PublicKey(playerBBytes).toBase58();
-    const state = data[81]; // byte 81 = state field
+    const state = data[81];
     return { playerB, state };
+  } catch {
+    return null;
+  }
+}
+
+// Read scores and winner after settle_match has been confirmed.
+export async function fetchSettledMatch(
+  connection: Connection,
+  matchId: bigint,
+): Promise<{ scoreA: number; scoreB: number; winner: string | null } | null> {
+  try {
+    const [matchPDA] = getMatchPDA(matchId);
+    const info = await connection.getAccountInfo(matchPDA, 'confirmed');
+    if (!info) return null;
+    const data = info.data;
+    const scoreA = data[214];
+    const scoreB = data[215];
+    const winnerBytes = data.slice(216, 248);
+    const isDefault = winnerBytes.every(b => b === 0);
+    const winner = isDefault ? null : new PublicKey(winnerBytes).toBase58();
+    return { scoreA, scoreB, winner };
   } catch {
     return null;
   }
